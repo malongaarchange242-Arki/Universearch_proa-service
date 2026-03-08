@@ -1,0 +1,33 @@
+{
+  "domain_threshold": 2,
+  "max_score": 5,
+  "normalize_vector": true,
+
+  "domains": {
+    "computer_science": ["logic_1", "technical_1"],
+    "health": ["resilience_1"],
+    "engineering": ["analysis_1"],
+    "business": ["entrepreneurship_1", "leadership_1", "management_1"],
+    "art": ["creativity_1"],
+    "communication": ["communication_1", "teamwork_1"],
+    "education": ["organization_1"],
+    "design": ["creativity_1"],
+    "marketing": ["negotiation_1"],
+    "finance": ["analysis_1"]
+  },
+
+  "skills": {
+    "logic": ["logic_1"],
+    "creativity": ["creativity_1"],
+    "entrepreneurship": ["entrepreneurship_1"],
+    "communication": ["communication_1"],
+    "analysis": ["analysis_1"],
+    "leadership": ["leadership_1"],
+    "technical": ["technical_1"],
+    "management": ["management_1"],
+    "teamwork": ["teamwork_1"],
+    "organization": ["organization_1"],
+    "resilience": ["resilience_1"],
+    "negotiation": ["negotiation_1"]
+  }
+}

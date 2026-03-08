@@ -1,0 +1,231 @@
+{
+  "fields": [
+    {
+      "field": "Génie Informatique",
+      "category": "Polytechnique",
+      "domains": ["computer_science", "technical", "logic"]
+    },
+    {
+      "field": "Réseaux Télécoms & Sécurité",
+      "category": "Polytechnique",
+      "domains": ["computer_science", "technical"]
+    },
+    {
+      "field": "Développement Informatique",
+      "category": "Polytechnique",
+      "domains": ["computer_science", "logic"]
+    },
+    {
+      "field": "Génie Logiciel",
+      "category": "Polytechnique",
+      "domains": ["computer_science", "analysis"]
+    },
+    {
+      "field": "Intelligence Artificielle",
+      "category": "Polytechnique",
+      "domains": ["computer_science", "analysis", "logic"]
+    },
+    {
+      "field": "Génie Mécanique",
+      "category": "Polytechnique",
+      "domains": ["engineering", "analysis"]
+    },
+    {
+      "field": "Maintenance Industrielle",
+      "category": "Polytechnique",
+      "domains": ["engineering", "technical"]
+    },
+    {
+      "field": "Électromécanique",
+      "category": "Polytechnique",
+      "domains": ["engineering", "technical"]
+    },
+    {
+      "field": "Mécatronique",
+      "category": "Polytechnique",
+      "domains": ["engineering", "computer_science"]
+    },
+    {
+      "field": "Génie Électrique",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Électrotechnique",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Automatisme & Instrumentation",
+      "category": "Polytechnique",
+      "domains": ["engineering", "computer_science"]
+    },
+    {
+      "field": "Automatisme & Informatique Industrielle",
+      "category": "Polytechnique",
+      "domains": ["engineering", "computer_science"]
+    },
+    {
+      "field": "Génie Industriel",
+      "category": "Polytechnique",
+      "domains": ["engineering", "management"]
+    },
+    {
+      "field": "Génie des Procédés / Génie Chimie",
+      "category": "Polytechnique",
+      "domains": ["engineering", "analysis"]
+    },
+    {
+      "field": "Procédés Alimentaires",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "QHSE",
+      "category": "Polytechnique",
+      "domains": ["engineering", "organization"]
+    },
+    {
+      "field": "Raffinage & Pétrochimie",
+      "category": "Polytechnique",
+      "domains": ["engineering", "analysis"]
+    },
+    {
+      "field": "Génie Civil",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "BTP",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Architecture & Urbanisme",
+      "category": "Polytechnique",
+      "domains": ["design", "engineering"]
+    },
+    {
+      "field": "Géomètre & Topographe",
+      "category": "Polytechnique",
+      "domains": ["engineering", "analysis"]
+    },
+    {
+      "field": "Géosciences",
+      "category": "Polytechnique",
+      "domains": ["engineering", "analysis"]
+    },
+    {
+      "field": "Mines & Carrières",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Génie Pétrolier",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Génie Hydrosystèmes",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Géophysique",
+      "category": "Polytechnique",
+      "domains": ["analysis", "engineering"]
+    },
+    {
+      "field": "Géotechnique & Géologie Appliquée",
+      "category": "Polytechnique",
+      "domains": ["engineering"]
+    },
+    {
+      "field": "Gestion de l’Environnement",
+      "category": "Polytechnique",
+      "domains": ["engineering", "organization"]
+    },
+
+    {
+      "field": "Management Commercial Opérationnel",
+      "category": "Commerciale",
+      "domains": ["business", "communication"]
+    },
+    {
+      "field": "Comptabilité & Gestion",
+      "category": "Commerciale",
+      "domains": ["finance", "analysis"]
+    },
+    {
+      "field": "Banque Finance Assurance",
+      "category": "Commerciale",
+      "domains": ["finance", "analysis"]
+    },
+    {
+      "field": "Ressources Humaines",
+      "category": "Commerciale",
+      "domains": ["management", "communication"]
+    },
+    {
+      "field": "Transport Logistique",
+      "category": "Commerciale",
+      "domains": ["management", "organization"]
+    },
+    {
+      "field": "Transit & Commerce International",
+      "category": "Commerciale",
+      "domains": ["business", "communication"]
+    },
+    {
+      "field": "Business Trade & Marketing",
+      "category": "Commerciale",
+      "domains": ["business", "marketing"]
+    },
+    {
+      "field": "Marketing Digital & Communication",
+      "category": "Commerciale",
+      "domains": ["marketing", "communication", "creativity"]
+    },
+    {
+      "field": "Économie Pétrolière",
+      "category": "Commerciale",
+      "domains": ["finance", "analysis"]
+    },
+    {
+      "field": "Assistant Manager",
+      "category": "Commerciale",
+      "domains": ["management", "organization"]
+    },
+
+    {
+      "field": "Droit des Affaires",
+      "category": "Droit",
+      "domains": ["business", "analysis"]
+    },
+    {
+      "field": "Diplomatie & Relations Internationales",
+      "category": "Droit",
+      "domains": ["communication", "leadership"]
+    },
+    {
+      "field": "Droit Privé",
+      "category": "Droit",
+      "domains": ["analysis"]
+    },
+    {
+      "field": "Droit Public",
+      "category": "Droit",
+      "domains": ["analysis", "leadership"]
+    },
+    {
+      "field": "Droit Pénal",
+      "category": "Droit",
+      "domains": ["analysis"]
+    },
+    {
+      "field": "Sciences Politiques",
+      "category": "Droit",
+      "domains": ["leadership", "communication"]
+    }
+  ]
+}
