@@ -4,3 +4,4 @@ pydantic
 supabase
 postgrest==2.27.0
 httpx
+python-dotenv
