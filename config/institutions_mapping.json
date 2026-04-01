@@ -1,0 +1,75 @@
+{
+  "institutions": [
+    {
+      "institution": "Université de Tunis",
+      "type": "Université Publique",
+      "domains": [
+        {"name": "computer_science", "weight": 1.0},
+        {"name": "engineering", "weight": 1.0},
+        {"name": "business", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "École Polytechnique de Tunis",
+      "type": "École d'Ingénieurs",
+      "domains": [
+        {"name": "engineering", "weight": 1.0},
+        {"name": "technical", "weight": 1.0},
+        {"name": "analysis", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "Université de Carthage",
+      "type": "Université Publique",
+      "domains": [
+        {"name": "business", "weight": 1.0},
+        {"name": "communication", "weight": 1.0},
+        {"name": "health", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "Université de Sfax",
+      "type": "Université Publique",
+      "domains": [
+        {"name": "engineering", "weight": 1.0},
+        {"name": "computer_science", "weight": 1.0},
+        {"name": "analysis", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "Université de Sousse",
+      "type": "Université Publique",
+      "domains": [
+        {"name": "health", "weight": 1.0},
+        {"name": "engineering", "weight": 1.0},
+        {"name": "business", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "ESSEC Tunis",
+      "type": "École de Commerce",
+      "domains": [
+        {"name": "business", "weight": 1.0},
+        {"name": "management", "weight": 1.0},
+        {"name": "communication", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "ESPRIT",
+      "type": "École d'Ingénieurs Privée",
+      "domains": [
+        {"name": "computer_science", "weight": 1.0},
+        {"name": "engineering", "weight": 1.0},
+        {"name": "technical", "weight": 1.0}
+      ]
+    },
+    {
+      "institution": "Faculté de Médecine de Tunis",
+      "type": "Faculté de Médecine",
+      "domains": [
+        {"name": "health", "weight": 1.0},
+        {"name": "analysis", "weight": 1.0}
+      ]
+    }
+  ]
+}

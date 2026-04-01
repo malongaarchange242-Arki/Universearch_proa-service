@@ -1,77 +1,103 @@
-# models/quiz.py
-
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
-from typing import Dict
-import os
-import json
-import logging
-
-logger = logging.getLogger("orientation.quiz")
-
-# Charger la configuration
-CONFIG_PATH = os.path.join(
-    os.path.dirname(__file__),
-    "..",
-    "orientation_config.json",
-)
-
-try:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        ORIENTATION_CONFIG = json.load(f)
-except Exception:
-    logger.exception("Impossible de charger orientation_config.json")
-    ORIENTATION_CONFIG = {}
-
-# Extraire toutes les questions attendues
-EXPECTED_QUESTIONS = set()
-for questions in ORIENTATION_CONFIG.get("skills", {}).values():
-    EXPECTED_QUESTIONS.update(questions)
-for questions in ORIENTATION_CONFIG.get("domains", {}).values():
-    EXPECTED_QUESTIONS.update(questions)
-
-MAX_SCORE = ORIENTATION_CONFIG.get("max_score", 5)
+from pydantic import BaseModel, Field, field_validator
+from typing import Dict, Optional, Union, List
+from enum import Enum
 
 
+class UserType(str, Enum):
+    BACHELIER = "bachelier"
+    ETUDIANT = "etudiant"
+    PARENT = "parent"
+
+
+class QuizOption(BaseModel):
+    """Single option for a question"""
+    id: str
+    text: str
+    value: int = Field(ge=1, le=4)
+
+
+class QuizQuestion(BaseModel):
+    """Single question"""
+    id: str
+    question_code: str
+    text: str
+    domain: str
+    options: List[QuizOption]
+    order_index: int
+
+
+class QuizMetadata(BaseModel):
+    """Quiz metadata"""
+    id: str
+    quiz_code: str
+    user_type: UserType
+    title: str
+    description: str
+    total_questions: int
+
+
+class QuizResponse(BaseModel):
+    """Complete quiz response"""
+    quiz: QuizMetadata
+    questions: List[QuizQuestion]
+
+
+class QuizSubmissionRequest(BaseModel):
+    """User quiz submission"""
+    user_id: str
+    user_type: UserType
+    quiz_code: str
+    responses: dict = Field(description="question_code → value (1-4)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "user_id": "user@example.com",
+                "user_type": "bachelier",
+                "quiz_code": "quiz_bachelier_2024_v1",
+                "responses": {
+                    "q1": 3,
+                    "q2": 4,
+                    "q3": 2,
+                    "q24": 3
+                }
+            }
+        }
+
+
+# Legacy model for backward compatibility
 class QuizSubmission(BaseModel):
-    """
-    Schéma strict pour soumettre un quiz complété.
-    
-    Validations:
-    - user_id: non vide
-    - quiz_version: correspond à une version connue
-    - responses: toutes les questions requises, scores [1, MAX_SCORE]
-    """
-    model_config = ConfigDict(extra="ignore")
-    
-    user_id: str = Field(..., min_length=1, description="Identifiant utilisateur")
-    quiz_version: str = Field(default="1.0", description="Version du quiz")
-    responses: Dict[str, float] = Field(..., description="Réponses {question_id: score}")
-    
-    @field_validator("responses")
+    user_id: str
+    quiz_version: str = "1.0"
+    orientation_type: str = Field(default="field", description="Type d'orientation: 'field' ou 'institution'")
+    responses: Dict[str, Union[int, float]]
+
+    @field_validator("responses", mode="before")
     @classmethod
-    def validate_responses(cls, values: Dict[str, float]):
-        """Vérifie que chaque réponse est valide [1, MAX_SCORE]"""
-        if not values:
-            raise ValueError("Au moins une réponse est requise")
-        
-        for question_id, score in values.items():
-            if not isinstance(score, (int, float)):
-                raise ValueError(f"{question_id}: le score doit être un nombre")
-            
-            if not (1.0 <= score <= float(MAX_SCORE)):
-                raise ValueError(f"{question_id}: score {score} hors intervalle [1, {MAX_SCORE}]")
-        
-        return values
-    
-    @model_validator(mode="after")
-    def validate_all_questions_answered(self):
-        """Vérifie que toutes les questions requises sont répondues"""
-        missing = EXPECTED_QUESTIONS - set(self.responses.keys())
-        if missing:
-            raise ValueError(f"Questions manquantes: {', '.join(sorted(missing))}")
-        
-        extra = set(self.responses.keys()) - EXPECTED_QUESTIONS
-        if extra:
-            logger.warning(f"Questions inattendues (ignorées): {', '.join(sorted(extra))}")
-        
-        return self
+    def validate_responses_not_null(cls, v):
+        """Rejette les responses nulles ou vides"""
+        if v is None:
+            raise ValueError("responses cannot be null")
+        if not isinstance(v, dict):
+            raise ValueError("responses must be a dictionary")
+        if len(v) == 0:
+            raise ValueError("responses cannot be empty")
+        return v
+
+    @field_validator("responses", mode="after")
+    @classmethod
+    def validate_response_values(cls, v):
+        """Valide que toutes les valeurs sont numériques"""
+        for key, value in v.items():
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"Response value for {key} must be numeric, got {type(value)}")
+            if not (1 <= value <= 4):
+                raise ValueError(f"Response value for {key} must be between 1 and 4, got {value}")
+        return v
+
+    @field_validator("orientation_type")
+    @classmethod
+    def validate_orientation_type(cls, v):
+        if v not in ["field", "institution"]:
+            raise ValueError("orientation_type doit être 'field' ou 'institution'")
+        return v

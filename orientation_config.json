@@ -1,33 +1,39 @@
 {
   "domain_threshold": 2,
-  "max_score": 5,
+  "max_score": 4,
   "normalize_vector": true,
 
   "domains": {
-    "computer_science": ["logic_1", "technical_1"],
-    "health": ["resilience_1"],
-    "engineering": ["analysis_1"],
-    "business": ["entrepreneurship_1", "leadership_1", "management_1"],
-    "art": ["creativity_1"],
-    "communication": ["communication_1", "teamwork_1"],
-    "education": ["organization_1"],
-    "design": ["creativity_1"],
-    "marketing": ["negotiation_1"],
-    "finance": ["analysis_1"]
+    "logic": ["q1", "q5"],
+    "technical": ["q2", "q6"],
+    "creativity": ["q3", "q7"],
+    "teamwork": ["q4", "q8"],
+    "analysis": ["q9", "q13"],
+    "entrepreneurship": ["q10", "q14"],
+    "communication": ["q11", "q15"],
+    "resilience": ["q12", "q16"],
+    "innovation": ["q17"],
+    "leadership": ["q18"],
+    "management": ["q19"],
+    "negotiation": ["q20"],
+    "organization": ["q21"],
+    "adaptability": ["q22"],
+    "learning": ["q23"],
+    "ethics": ["q24"]
   },
 
   "skills": {
-    "logic": ["logic_1"],
-    "creativity": ["creativity_1"],
-    "entrepreneurship": ["entrepreneurship_1"],
-    "communication": ["communication_1"],
-    "analysis": ["analysis_1"],
-    "leadership": ["leadership_1"],
-    "technical": ["technical_1"],
-    "management": ["management_1"],
-    "teamwork": ["teamwork_1"],
-    "organization": ["organization_1"],
-    "resilience": ["resilience_1"],
-    "negotiation": ["negotiation_1"]
+    "logic": ["q1"],
+    "creativity": ["q3", "q7"],
+    "entrepreneurship": ["q10", "q14"],
+    "communication": ["q11", "q15"],
+    "analysis": ["q5", "q9", "q13"],
+    "leadership": ["q18"],
+    "technical": ["q2", "q6"],
+    "management": ["q19"],
+    "teamwork": ["q4", "q8"],
+    "organization": ["q21"],
+    "resilience": ["q12", "q16"],
+    "negotiation": ["q20"]
   }
 }

@@ -3,12 +3,19 @@
     {
       "field": "Génie Informatique",
       "category": "Polytechnique",
-      "domains": ["computer_science", "technical", "logic"]
+      "domains": [
+        {"name": "computer_science", "weight": 1.0},
+        {"name": "technical", "weight": 1.0},
+        {"name": "logic", "weight": 1.0}
+      ]
     },
     {
       "field": "Réseaux Télécoms & Sécurité",
       "category": "Polytechnique",
-      "domains": ["computer_science", "technical"]
+      "domains": [
+        {"name": "computer_science", "weight": 1.0},
+        {"name": "technical", "weight": 1.0}
+      ]
     },
     {
       "field": "Développement Informatique",

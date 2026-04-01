@@ -11,6 +11,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import logging
 from api.routes import router
+from api.quiz_routes import router as quiz_router
+from api.admin_routes import router as admin_router
 import os
 
 app = FastAPI(title="Orientation Service", version="1.0.0")
@@ -32,8 +34,19 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         body.decode("utf-8", errors="replace"),
     )
 
+    # Convert errors to JSON-serializable format
+    errors = []
+    for error in exc.errors():
+        error_dict = {
+            'type': error.get('type'),
+            'loc': error.get('loc'),
+            'msg': error.get('msg'),
+            'input': error.get('input')
+        }
+        errors.append(error_dict)
+
     # Return standard 422 payload with details so clients keep same behaviour
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 # ============================================================
 # 🔐 CORS Configuration
@@ -50,6 +63,8 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(quiz_router)          # NEW: Quiz endpoints
+app.include_router(admin_router)         # NEW: Admin endpoints
 
 @app.get("/health")
 def health():

@@ -318,3 +318,154 @@ def get_profiles_by_confidence(
         logger.exception("Erreur récupération profiles par confiance")
         raise
 
+
+# -------------------------------------------------
+# Quiz et Questions
+# -------------------------------------------------
+def get_active_quiz() -> Optional[Dict[str, Any]]:
+    """
+    Récupère le quiz actif (is_active = true, version la plus récente).
+    """
+    try:
+        result = (
+            supabase.table("orientation_quizzes")
+            .select("*")
+            .eq("is_active", True)
+            .order("version", desc=True)
+            .limit(1)
+            .execute()
+        )
+        data_resp, error = _unwrap_result(result)
+        if error:
+            raise RuntimeError(error)
+
+        return data_resp[0] if data_resp else None
+    
+    except Exception as e:
+        logger.exception("Erreur récupération quiz actif")
+        raise
+
+
+def get_quiz_questions(quiz_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Récupère les questions d'un quiz, ordonnées par order_index.
+    Inclut les options si présentes.
+    """
+    try:
+        # Récupérer les questions
+        if quiz_id:
+            result = (
+                supabase.table("orientation_quiz_questions")
+                .select("*")
+                .eq("quiz_id", quiz_id)
+                .order("order_index", desc=False)
+                .execute()
+            )
+        else:
+            result = (
+                supabase.table("orientation_quiz_questions")
+                .select("*")
+                .order("quiz_id", desc=False)
+                .order("order_index", desc=False)
+                .execute()
+            )
+        questions_resp, error = _unwrap_result(result)
+        if error:
+            raise RuntimeError(error)
+
+        questions = questions_resp or []
+        
+        # Pour chaque question, récupérer les options
+        for question in questions:
+            options_result = (
+                supabase.table("orientation_quiz_options")
+                .select("*")
+                .eq("question_id", question["id"])
+                .order("option_value", desc=False)
+                .execute()
+            )
+            options_resp, options_error = _unwrap_result(options_result)
+            if options_error:
+                logger.warning(f"Erreur récupération options pour question {question['id']}: {options_error}")
+                question["options"] = []
+            else:
+                question["options"] = options_resp or []
+        
+        return questions
+    
+    except Exception as e:
+        logger.exception(f"Erreur récupération questions pour quiz {quiz_id}")
+        raise
+
+
+# -------------------------------------------------
+# Poids des questions pour feature engineering
+# Table : orientation_question_weights
+# -------------------------------------------------
+def get_question_feature_weights() -> Dict[str, float]:
+    """
+    Récupère les poids des questions depuis la DB.
+    
+    Returns:
+        Dict[question_id: str, weight: float]
+    """
+    try:
+        result = (
+            supabase.table("orientation_question_feature_weights")
+            .select("question_id, weight")
+            .execute()
+        )
+        data_resp, error = _unwrap_result(result)
+        if error:
+            logger.warning(f"Erreur récupération poids questions: {error}")
+            return {}  # Retourner dict vide en cas d'erreur
+        
+        weights = {row["question_id"]: float(row["weight"]) for row in (data_resp or [])}
+        logger.info(f"Poids questions récupérés: {len(weights)} entrées")
+        return weights
+    
+    except Exception as e:
+        logger.exception("Erreur récupération poids questions")
+        return {}  # Fallback vers poids par défaut
+
+
+# -------------------------------------------------
+# Feedback amélioré avec métriques PROA
+# -------------------------------------------------
+def save_orientation_feedback(
+    user_id: str,
+    satisfaction: int,
+    changed_orientation: bool,
+    success: Optional[bool] = None,
+    recommended_fields: Optional[List[str]] = None,
+    recommended_institutions: Optional[List[str]] = None,
+    confidence_score: Optional[float] = None,
+    orientation_type: Optional[str] = None,
+) -> None:
+    """
+    Sauvegarde le feedback utilisateur avec métriques PROA améliorées.
+    """
+    data = {
+        "user_id": user_id,
+        "satisfaction": satisfaction,
+        "changed_orientation": changed_orientation,
+        "success": success,
+        "recommended_fields": recommended_fields,
+        "recommended_institutions": recommended_institutions,
+        "confidence_score": confidence_score,
+        "orientation_type": orientation_type,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+
+    try:
+        result = supabase.table("orientation_feedback").insert(data).execute()
+        data_resp, error = _unwrap_result(result)
+        if error:
+            raise RuntimeError(error)
+
+        logger.info(f"Feedback PROA amélioré sauvegardé | user={user_id} | satisfaction={satisfaction} | confidence={confidence_score}")
+
+    except Exception as e:
+        logger.exception("Erreur sauvegarde orientation_feedback amélioré")
+        raise
+

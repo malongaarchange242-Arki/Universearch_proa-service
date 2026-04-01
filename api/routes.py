@@ -9,7 +9,8 @@ from datetime import datetime
 from core.rule_engine import compute_profile
 from core.feature_engineering import build_features
 from core.monitoring import get_health_status, analyze_user_progression
-from core.recommendations import compute_recommended_fields
+from core.recommendations import compute_recommended_fields, compute_recommended_institutions
+from core.output_formatter import ProaResponse
 from models.profile import OrientationProfile
 from models.quiz import QuizSubmission
 from db.repository import (
@@ -17,6 +18,9 @@ from db.repository import (
     save_orientation_profile,
     get_orientation_history,
     save_orientation_feedback,
+    get_active_quiz,
+    get_quiz_questions,
+    supabase,  # ✅ Importer le client Supabase
 )
 
 logger = logging.getLogger("orientation.api")
@@ -81,8 +85,8 @@ def compute_orientation(payload: QuizSubmission):
             responses=payload.responses,
         )
 
-        # 2️⃣ Feature engineering réel
-        features = build_features(payload.responses)
+        # 2️⃣ Feature engineering réel (✨ MAINTENANT PILOTÉ PAR LA DB!)
+        features = build_features(payload.responses, payload.orientation_type)
         logger.debug(f"Features extraites: {len(features)}")
 
         # 3️⃣ Construire profil OrientationProfile à partir des features
@@ -109,6 +113,12 @@ def compute_orientation(payload: QuizSubmission):
         else:
             confidence = 0.0
 
+        # Améliorer la confiance avec ratio réponses/total
+        total_questions = len(ORIENTATION_CONFIG.get("domains", {})) + len(ORIENTATION_CONFIG.get("skills", {}))
+        answered_questions = len(payload.responses)
+        if total_questions > 0:
+            confidence = round(confidence * (answered_questions / total_questions), 4)
+
         # 6️⃣ Sauvegarde profil
         save_orientation_profile(
             user_id=payload.user_id,
@@ -119,22 +129,24 @@ def compute_orientation(payload: QuizSubmission):
 
         # 7️⃣ Calcul des filières recommandées (top N)
         try:
-            recommended = compute_recommended_fields({"domains": domains, "skills": skills}, top_n=5)
+            if payload.orientation_type == "institution":
+                recommended = compute_recommended_institutions({"domains": domains, "skills": skills}, top_n=5)
+            else:
+                recommended = compute_recommended_fields({"domains": domains, "skills": skills}, top_n=5)
         except Exception:
-            logger.exception("Erreur calcul recommandations filières")
-            recommended = {"recommended_fields": []}
+            logger.exception("Erreur calcul recommandations")
+            recommended = {"recommended_fields": []} if payload.orientation_type == "field" else {"recommended_institutions": []}
 
         logger.info(f"Profil créé: confidence={confidence}, vector_size={len(vector)}")
 
-        return {
-            "user_id": payload.user_id,
-            "quiz_version": payload.quiz_version,
-            "profile": vector,
-            "confidence": confidence,
-            "features_count": len(features),
-            "recommended_fields": recommended.get("recommended_fields", []),
-            "created_at": datetime.utcnow(),
-        }
+        # ✅ Standardiser la réponse avec ProaResponse
+        return ProaResponse.compute_orientation(
+            user_id=payload.user_id,
+            profile=vector,
+            confidence=confidence,
+            recommended_fields=recommended.get("recommended_fields", []),
+            quiz_version=payload.quiz_version
+        )
 
     except ValueError as ve:
         # Erreur de validation (données invalides)
@@ -247,6 +259,57 @@ def submit_orientation_feedback(payload: OrientationFeedback):
         )
     except Exception as e:
         logger.exception(f"Erreur feedback orientation | user={payload.user_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur serveur interne"
+        )
+
+
+# -------------------------------------------------
+# Récupération des questions du quiz
+# -------------------------------------------------
+@router.get("/questions")
+def get_questions_endpoint():
+    """
+    Récupère les questions du quiz d'orientation depuis la base de données.
+    
+    Retourne la liste des questions avec leur domaine et catégorie.
+    """
+    try:
+        # Récupérer toutes les questions (pas de filtrage par quiz actif pour l'instant)
+        db_questions = get_quiz_questions()
+        
+        if not db_questions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Aucune question trouvée"
+            )
+        
+        # Mapper les données DB au format attendu
+        questions = []
+        for q in db_questions:
+            question_code = q["question_code"]
+            # Pour les questions DB, domaine par défaut
+            domain = 'general'
+            category = 'General'
+            
+            questions.append({
+                "id": question_code,
+                "domain": domain,
+                "text": q["question_text"],
+                "category": category
+            })
+        
+        logger.info(f"Récupération de {len(questions)} questions depuis la DB")
+        
+        return {
+            "questions": questions
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Erreur récupération questions: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erreur serveur interne"
