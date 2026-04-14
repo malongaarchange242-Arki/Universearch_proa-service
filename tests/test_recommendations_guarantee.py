@@ -12,7 +12,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.recommendations import compute_recommended_fields, build_features
+from core.recommendations import compute_recommended_fields, _extract_keywords_from_profile
 from core.feature_engineering import build_features as build_features_fe
 
 
@@ -88,9 +88,14 @@ class TestRecommendationsGuarantee:
         
         assert isinstance(result, dict), "Response is not dict"
         assert "recommended_fields" in result, "Missing recommended_fields"
+        assert "field_scores" in result, "Missing field_scores"
+        assert "insight" in result, "Missing insight"
         
         fields = result["recommended_fields"]
+        field_scores = result["field_scores"]
         assert isinstance(fields, list), "recommended_fields is not list"
+        assert isinstance(field_scores, dict), "field_scores is not dict"
+        assert isinstance(result["insight"], str), "insight is not string"
         
         for field in fields:
             assert isinstance(field["field_name"], str), f"field_name not string: {field}"
@@ -98,7 +103,26 @@ class TestRecommendationsGuarantee:
             assert 0.0 <= field["score"] <= 1.0, f"score out of range: {field['score']}"
             assert isinstance(field["reason"], str), f"reason not string: {field}"
             assert field["category"] in ["Supabase", "fallback"], f"invalid category: {field['category']}"
-    
+            assert field["field_name"] in field_scores, f"field_name {field['field_name']} missing from field_scores"
+            assert field_scores[field["field_name"]] == field["score"], f"score mismatch for {field['field_name']}"
+
+    def test_keyword_normalization_strips_prefixes(self):
+        """Test: Profile keys with domain_/skill_ prefixes normalize correctly."""
+        profile = {
+            "domains": {
+                "domain_technical": 0.8,
+                "domain_logic": 0.6,
+            },
+            "skills": {
+                "skill_communication": 0.7,
+            }
+        }
+        keywords = _extract_keywords_from_profile(profile)
+        assert ("technical", 0.8) in keywords
+        assert ("logic", 0.6) in keywords
+        assert ("communication", 0.7) in keywords
+        assert all(not key.startswith("domain_") and not key.startswith("skill_") for key, _ in keywords)
+
     def test_feature_engineering_no_crash(self):
         """Test: Feature engineering never crashes even with bad input."""
         test_responses = {
@@ -110,7 +134,7 @@ class TestRecommendationsGuarantee:
             "Q24": 5
         }
         
-        features = build_features(test_responses, orientation_type="field")
+        features = build_features_fe(test_responses, orientation_type="field")
         
         assert features is not None, "Features is None!"
         assert isinstance(features, dict), "Features is not dict"

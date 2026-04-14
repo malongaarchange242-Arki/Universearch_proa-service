@@ -211,6 +211,68 @@ def get_latest_orientation_profile(user_id: str) -> Optional[Dict[str, Any]]:
         raise
 
 # -------------------------------------------------
+# 🎯 CAREER RECOMMENDATIONS (NEW)
+# Table : career_recommendations (à créer dans Supabase)
+# -------------------------------------------------
+def save_career_profile(
+    user_id: str,
+    career_recommendation: Dict[str, Any],
+) -> Optional[str]:
+    """
+    Sauvegarde les recommandations de carrière pour un utilisateur.
+    
+    Args:
+        user_id: ID utilisateur
+        career_recommendation: Résultat de compute_career_recommendations()
+    
+    Returns:
+        ID du record créé
+    """
+    if not career_recommendation or career_recommendation.get("status") != "success":
+        logger.warning(f"Invalid career recommendation for user {user_id}")
+        return None
+    
+    user_uuid = string_to_uuid(user_id)
+    top_career = career_recommendation.get("recommended_career", {})
+    
+    data = {
+        "user_id": user_uuid,
+        "recommended_career_id": top_career.get("slug"),  # Utiliser slug comme ID carrière
+        "recommended_career_name": top_career.get("name"),
+        "score": top_career.get("score", 0.0),
+        "match_quality": top_career.get("match_quality", "Unknown"),
+        "top_3_careers": career_recommendation.get("top_3_careers", []),
+        "strengths": career_recommendation.get("strengths", []),
+        "dimension_scores": career_recommendation.get("dimension_scores", {}),
+        "related_filieres": top_career.get("related_filieres", []),
+        "message": career_recommendation.get("message", ""),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    
+    try:
+        # Table: career_recommendations
+        # Si elle n'existe pas, la création sera silencieuse (non-bloquante)
+        result = supabase.table("career_recommendations").insert(data).execute()
+        data_resp, error = _unwrap_result(result)
+        
+        if error:
+            logger.warning(f"Could not save career recommendation (table may not exist): {error}")
+            return None
+        
+        rec_id = data_resp[0]["id"] if data_resp else None
+        logger.info(
+            f"Career recommendation saved | user={user_id} (uuid={user_uuid}) | "
+            f"career={top_career.get('name')} | score={top_career.get('score')} | rec_id={rec_id}"
+        )
+        return rec_id
+    
+    except Exception as e:
+        logger.warning(f"Error saving career recommendation: {e}")
+        # Non-bloquant; on loggue mais on n'interrompt pas le flow
+        return None
+
+
+# -------------------------------------------------
 # Feedback utilisateur
 # Table : orientation_feedback
 # -------------------------------------------------
@@ -468,4 +530,119 @@ def save_orientation_feedback(
     except Exception as e:
         logger.exception("Erreur sauvegarde orientation_feedback amélioré")
         raise
+
+
+# -------------------------------------------------
+# Questions dynamiques / Non-répétitives
+# -------------------------------------------------
+def get_random_questions_per_session(
+    user_type: str = "all",
+    count_per_dimension: int = 2,
+    difficulty: int = 1,
+) -> List[Dict[str, Any]]:
+    """
+    🎯 Récupère des questions aléatoires et équilibrées par dimension.
+    
+    Cette fonction garantit:
+    - Questions différentes à chaque session (anti-fatigue)
+    - Couverture équilibrée des dimensions (logique, social, etc.)
+    - Sélection cible: N questions par dimension
+    
+    Args:
+        user_type (str): 'all', 'bachelier', 'etudiant', or 'parent'
+        count_per_dimension (int): Nombre de questions par dimension (défaut: 2)
+        difficulty (int): Niveau minimum de difficulté [1-3]
+    
+    Returns:
+        List[Dict]: Questions avec id, question_code, question_text, dimension, etc.
+    
+    Example:
+        >>> questions = get_random_questions_per_session('bachelier', 2, 1)
+        >>> len(questions)  # ~26 questions (13 dimensions × 2)
+    """
+    try:
+        # Appeler la fonction SQL PostgreSQL
+        result = supabase.rpc(
+            "get_random_questions",
+            {
+                "p_user_type": user_type,
+                "p_count_per_dimension": count_per_dimension,
+                "p_difficulty": difficulty,
+            }
+        ).execute()
+        
+        data_resp, error = _unwrap_result(result)
+        if error:
+            logger.warning(f"Erreur appel get_random_questions | error={error}")
+            # Fallback: retourner Questions simples
+            return get_random_questions_simple(user_type=user_type)
+        
+        questions = data_resp or []
+        unique_codes = set()
+        unique_questions = []
+        for q in questions:
+            code = q.get('question_code')
+            if code in unique_codes:
+                logger.warning(f"Duplicate question_code removed from dynamic set: {code}")
+                continue
+            unique_codes.add(code)
+            unique_questions.append(q)
+
+        if len(unique_questions) != len(questions):
+            logger.warning(
+                f"Questions dynamiques dédupliquées | original={len(questions)} | unique={len(unique_questions)}"
+            )
+
+        questions = unique_questions
+        logger.info(
+            f"Questions dynamiques récupérées | user_type={user_type} | "
+            f"count={len(questions)} | dimensions_expected={count_per_dimension}"
+        )
+        
+        return questions
+    
+    except Exception as e:
+        logger.exception(f"Erreur récupération questions dynamiques: {str(e)}")
+        # Fallback: retourner quelques questions simples
+        return get_random_questions_simple(user_type=user_type, limit=15)
+
+
+def get_random_questions_simple(
+    user_type: str = "all",
+    limit: int = 15,
+) -> List[Dict[str, Any]]:
+    """
+    🎯 Version simple: sélection aléatoire sans garantie d'équilibre dimensionnel.
+    
+    Fallback si la fonction SQL n'est pas disponible.
+    
+    Args:
+        user_type (str): 'all', 'bachelier', 'etudiant', or 'parent'
+        limit (int): Nombre de questions à retourner
+    
+    Returns:
+        List[Dict]: Questions aléatoires
+    """
+    try:
+        result = supabase.rpc(
+            "get_random_questions_simple",
+            {
+                "p_user_type": user_type,
+                "p_limit": limit,
+            }
+        ).execute()
+        
+        data_resp, error = _unwrap_result(result)
+        if error:
+            logger.warning(f"Erreur get_random_questions_simple | error={error}")
+            return []
+        
+        questions = data_resp or []
+        logger.info(f"Questions aléatoires simples récupérées | count={len(questions)}")
+        
+        return questions
+    
+    except Exception as e:
+        logger.exception(f"Erreur récupération questions simples: {str(e)}")
+        return []
 

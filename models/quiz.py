@@ -68,6 +68,7 @@ class QuizSubmissionRequest(BaseModel):
 # Legacy model for backward compatibility
 class QuizSubmission(BaseModel):
     user_id: str
+    user_type: str = Field(default="all", description="Type d'utilisateur: 'all', 'bachelier', 'étudiant', 'parent'")
     quiz_version: str = "1.0"
     orientation_type: str = Field(default="field", description="Type d'orientation: 'field' ou 'institution'")
     responses: Dict[str, Union[int, float]]

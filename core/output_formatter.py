@@ -27,7 +27,10 @@ class ProaResponse:
         profile: List[float],
         confidence: float,
         recommended_fields: List[Dict[str, Any]],
-        quiz_version: str = "1.0"
+        quiz_version: str = "1.0",
+        profile_id: str = None,  # 🔗 Ajouter profile_id pour traçabilité
+        field_scores: Dict[str, float] = None,
+        insight: str = ""
     ) -> Dict[str, Any]:
         """
         Réponse standardisée pour /orientation/compute
@@ -36,6 +39,7 @@ class ProaResponse:
         - recommended_fields est TOUJOURS un array
         - Chaque field a: field_name, score, reason, category
         - Jamais null, toujours [] si vide
+        - profile_id permet PORA de tracer la recommandation
         """
         
         # Normaliser les filières recommandées
@@ -51,6 +55,7 @@ class ProaResponse:
         
         return {
             "user_id": user_id,
+            "profile_id": profile_id,  # 🔗 Traçabilité pour PORA
             "quiz_version": quiz_version,
             "profile": {
                 "vector": profile,
@@ -58,6 +63,9 @@ class ProaResponse:
                 "timestamp": datetime.utcnow().isoformat()
             },
             "recommended_fields": normalized_fields,  # ✅ JAMAIS null
+            "field_scores": field_scores or {},
+            "insight": insight or "",
+            "aiInsight": insight or "",
             "status": "success"
         }
     

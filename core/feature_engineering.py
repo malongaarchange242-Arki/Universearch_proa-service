@@ -423,7 +423,7 @@ def build_features(responses: Dict[str, float], orientation_type: str = "field")
             for q_id in question_ids:
                 if q_id in responses:
                     raw_score = responses[q_id]
-                    normalized = raw_score / max_score
+                    normalized = (raw_score / max_score) ** 1.5
                     matched_scores.append(normalized)
                     matched_ids.append((q_id, normalized))
                 else:
@@ -450,7 +450,7 @@ def build_features(responses: Dict[str, float], orientation_type: str = "field")
                 for q_id in question_ids:
                     if q_id in responses:
                         raw_score = responses[q_id]
-                        normalized = raw_score / max_score
+                        normalized = (raw_score / max_score) ** 1.5
                         matched_scores.append(normalized)
                         matched_ids.append((q_id, normalized))
                 
