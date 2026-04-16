@@ -9,7 +9,7 @@ from datetime import datetime
 from supabase import Client
 
 from models.proa import DomainScore, FeatureScore
-from core.utils import normalize_responses, normalize_answer_value
+from core.utils import normalize_responses
 
 logger = logging.getLogger(__name__)
 
