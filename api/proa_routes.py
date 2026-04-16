@@ -381,3 +381,241 @@ async def diagnose_cache():
             "ttl_seconds": orchestrator.filiere_scorer.cache_ttl_seconds
         }
     }
+
+
+# ============================================================================
+# RECOMMENDATIONS - CANDIDATE MANAGEMENT
+# ============================================================================
+
+@router.get("/recommendations/list")
+async def get_recommendations_list(
+    target_id: str = None,
+    score_min: float = 0.0,
+    rank: int = None,
+    user_type: str = None,
+    search: str = None,
+    limit: int = 25,
+    offset: int = 0
+):
+    """
+    Get recommended candidates for universities/centres with advanced filtering.
+    
+    Query Parameters:
+        - target_id: Filter by establishment/centre ID (universite_id or centre_id)
+        - score_min: Minimum score threshold (0.0-1.0)
+        - rank: Filter by rank ("top-10", "top-50", "top-100", or specific number)
+        - user_type: Filter by user type ("etudiant", "bachelier", "lycéen")
+        - search: Search by candidate name or email
+        - limit: Items per page (default 25)
+        - offset: Pagination offset (default 0)
+    
+    Returns:
+        {
+            "total": int,
+            "count": int,
+            "page": int,
+            "limit": int,
+            "candidates": [
+                {
+                    "id": str,
+                    "user_id": str,
+                    "name": str,
+                    "email": str,
+                    "telephone": str,
+                    "user_type": str,
+                    "filiere": str,
+                    "target_name": str,
+                    "target_type": str,
+                    "score": float,
+                    "rank": int,
+                    "confidence": float,
+                    "reason": str,
+                    "created_at": str
+                }
+            ],
+            "stats": {
+                "avg_score": float,
+                "top_10_count": int,
+                "selected_count": int
+            }
+        }
+    """
+    try:
+        # Build base query using RLS-safe method
+        query = supabase.table("orientation_recommandation").select("*")
+        
+        # Apply filters
+        if target_id:
+            query = query.eq("target_id", target_id)
+        
+        if score_min > 0:
+            query = query.gte("score", score_min)
+        
+        if rank:
+            rank_int = int(rank)
+            if rank == "top-10":
+                query = query.lte("rank", 10)
+            elif rank == "top-50":
+                query = query.lte("rank", 50)
+            elif rank == "top-100":
+                query = query.lte("rank", 100)
+            else:
+                query = query.lte("rank", rank_int)
+        
+        # Execute query without pagination first for total count
+        response = query.execute()
+        all_recommendations = response.data if response.data else []
+        
+        # Post-process to add user data and apply remaining filters
+        processed_candidates = []
+        
+        for rec in all_recommendations:
+            try:
+                # Fetch user data
+                user_response = supabase.table("users").select("*").eq("id", rec.get("user_id")).execute()
+                user = user_response.data[0] if user_response.data else None
+                
+                if not user:
+                    logger.warning(f"User not found for recommendation: {rec.get('user_id')}")
+                    continue
+                
+                # Apply user_type filter
+                user_type_value = user.get("user_type", "").strip()
+                if user_type and user_type.lower() != user_type_value.lower():
+                    continue
+                
+                # Apply search filter
+                if search:
+                    search_lower = search.lower()
+                    name = f"{user.get('nom', '')} {user.get('prenom', '')}".lower()
+                    email = user.get('email', '').lower()
+                    if search_lower not in name and search_lower not in email:
+                        continue
+                
+                # Get filière name (optional)
+                filiere_name = "N/A"
+                try:
+                    # Try to get from profile or orientation data
+                    profile_response = supabase.table("orientation_profiles").select("*").eq("user_id", rec.get("user_id")).limit(1).execute()
+                    if profile_response.data:
+                        profile_data = profile_response.data[0]
+                        filiere_name = profile_data.get("matched_filieres", [None])[0] if profile_data.get("matched_filieres") else "N/A"
+                except:
+                    pass
+                
+                # Build candidate object
+                candidate = {
+                    "id": rec.get("id"),
+                    "user_id": rec.get("user_id"),
+                    "name": f"{user.get('prenom', '')} {user.get('nom', '')}".strip(),
+                    "email": user.get("email", ""),
+                    "telephone": user.get("telephone", ""),
+                    "user_type": user_type_value,
+                    "filiere": filiere_name,
+                    "target_name": rec.get("target_name", ""),
+                    "target_type": rec.get("target_type", ""),
+                    "score": rec.get("score", 0.0),
+                    "rank": rec.get("rank", 0),
+                    "confidence": rec.get("confidence", 0.0),
+                    "reason": rec.get("reason", ""),
+                    "created_at": rec.get("created_at", "")
+                }
+                
+                processed_candidates.append(candidate)
+                
+            except Exception as e:
+                logger.error(f"Error processing recommendation {rec.get('id')}: {str(e)}")
+                continue
+        
+        # Sort by score descending
+        processed_candidates.sort(key=lambda x: x["score"], reverse=True)
+        
+        # Calculate total
+        total = len(processed_candidates)
+        
+        # Apply pagination
+        paginated = processed_candidates[offset:offset + limit]
+        page = (offset // limit) + 1 if limit > 0 else 1
+        
+        # Calculate stats
+        avg_score = sum(c["score"] for c in processed_candidates) / len(processed_candidates) if processed_candidates else 0.0
+        top_10_count = sum(1 for c in processed_candidates if c["rank"] <= 10)
+        
+        return {
+            "total": total,
+            "count": len(paginated),
+            "page": page,
+            "limit": limit,
+            "offset": offset,
+            "candidates": paginated,
+            "stats": {
+                "avg_score": round(avg_score, 4),
+                "top_10_count": top_10_count,
+                "selected_count": 0  # To be computed on frontend
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error fetching recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch recommendations: {str(e)}"
+        )
+
+
+@router.get("/recommendations/stats")
+async def get_recommendations_stats(target_id: str = None):
+    """
+    Get statistics for recommendations dashboard.
+    
+    Returns:
+        {
+            "total_recommendations": int,
+            "unique_candidates": int,
+            "avg_score": float,
+            "score_distribution": {"[0-0.25]": int, "[0.25-0.5]": int, ...},
+            "by_target_type": {"universite": int, "centre": int}
+        }
+    """
+    try:
+        query = supabase.table("orientation_recommandation").select("*")
+        
+        if target_id:
+            query = query.eq("target_id", target_id)
+        
+        response = query.execute()
+        recommendations = response.data if response.data else []
+        
+        # Calculate statistics
+        unique_users = set(r.get("user_id") for r in recommendations)
+        scores = [r.get("score", 0.0) for r in recommendations]
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        
+        # Score distribution
+        score_dist = {
+            "[0-0.25]": sum(1 for s in scores if 0 <= s < 0.25),
+            "[0.25-0.5]": sum(1 for s in scores if 0.25 <= s < 0.5),
+            "[0.5-0.75]": sum(1 for s in scores if 0.5 <= s < 0.75),
+            "[0.75-1.0]": sum(1 for s in scores if 0.75 <= s <= 1.0)
+        }
+        
+        # By target type
+        universite_count = sum(1 for r in recommendations if r.get("target_type") == "universite")
+        centre_count = sum(1 for r in recommendations if r.get("target_type") == "centre")
+        
+        return {
+            "total_recommendations": len(recommendations),
+            "unique_candidates": len(unique_users),
+            "avg_score": round(avg_score, 4),
+            "score_distribution": score_dist,
+            "by_target_type": {
+                "universite": universite_count,
+                "centre": centre_count
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error calculating stats: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to calculate statistics")
