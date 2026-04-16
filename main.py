@@ -13,6 +13,7 @@ import logging
 from api.routes import router
 from api.quiz_routes import router as quiz_router
 from api.admin_routes import router as admin_router
+from api.proa_routes import router as proa_router
 import os
 
 app = FastAPI(title="Orientation Service", version="1.0.0")
@@ -65,6 +66,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(quiz_router)          # NEW: Quiz endpoints
 app.include_router(admin_router)         # NEW: Admin endpoints
+app.include_router(proa_router)          # PROA Service - Recommendations & Scoring
 
 @app.get("/health")
 def health():
