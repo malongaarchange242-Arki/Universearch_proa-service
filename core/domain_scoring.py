@@ -4,7 +4,7 @@ Uses question_domain_mapping table for DB-driven configuration
 """
 
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime
 from supabase import Client
 

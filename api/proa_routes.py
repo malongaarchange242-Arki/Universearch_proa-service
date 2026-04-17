@@ -441,8 +441,32 @@ async def get_recommendations_list(
         }
     """
     try:
-        # Build base query using RLS-safe method
-        query = supabase.table("orientation_recommandation").select("*")
+        # Build base query with proper joins to utilisateurs and profiles tables
+        query = supabase.table("orientation_recommendations").select(
+            """
+            id,
+            user_id,
+            score,
+            rank,
+            confidence,
+            reason,
+            target_id,
+            target_name,
+            target_type,
+            created_at,
+            utilisateurs(
+                id,
+                user_type,
+                profiles(
+                    id,
+                    nom,
+                    prenom,
+                    email,
+                    telephone
+                )
+            )
+            """
+        )
         
         # Apply filters
         if target_id:
@@ -471,24 +495,27 @@ async def get_recommendations_list(
         
         for rec in all_recommendations:
             try:
-                # Fetch user data
-                user_response = supabase.table("users").select("*").eq("id", rec.get("user_id")).execute()
-                user = user_response.data[0] if user_response.data else None
+                # Get user and profile data from joined response
+                utilisateur = rec.get("utilisateurs")
                 
-                if not user:
+                if not utilisateur:
                     logger.warning(f"User not found for recommendation: {rec.get('user_id')}")
                     continue
                 
+                profile = utilisateur.get("profiles", {}) if isinstance(utilisateur, dict) else {}
+                
                 # Apply user_type filter
-                user_type_value = user.get("user_type", "").strip()
+                user_type_value = utilisateur.get("user_type", "").strip() if isinstance(utilisateur, dict) else ""
                 if user_type and user_type.lower() != user_type_value.lower():
                     continue
                 
                 # Apply search filter
                 if search:
                     search_lower = search.lower()
-                    name = f"{user.get('nom', '')} {user.get('prenom', '')}".lower()
-                    email = user.get('email', '').lower()
+                    prenom = profile.get('prenom', '') if isinstance(profile, dict) else ''
+                    nom = profile.get('nom', '') if isinstance(profile, dict) else ''
+                    name = f"{prenom} {nom}".lower()
+                    email = profile.get('email', '').lower() if isinstance(profile, dict) else ''
                     if search_lower not in name and search_lower not in email:
                         continue
                 
@@ -507,9 +534,9 @@ async def get_recommendations_list(
                 candidate = {
                     "id": rec.get("id"),
                     "user_id": rec.get("user_id"),
-                    "name": f"{user.get('prenom', '')} {user.get('nom', '')}".strip(),
-                    "email": user.get("email", ""),
-                    "telephone": user.get("telephone", ""),
+                    "name": f"{profile.get('prenom', '')} {profile.get('nom', '')}".strip() if isinstance(profile, dict) else "N/A",
+                    "email": profile.get("email", "") if isinstance(profile, dict) else "",
+                    "telephone": profile.get("telephone", "") if isinstance(profile, dict) else "",
                     "user_type": user_type_value,
                     "filiere": filiere_name,
                     "target_name": rec.get("target_name", ""),
@@ -579,7 +606,7 @@ async def get_recommendations_stats(target_id: str = None):
         }
     """
     try:
-        query = supabase.table("orientation_recommandation").select("*")
+        query = supabase.table("orientation_recommendations").select("*")
         
         if target_id:
             query = query.eq("target_id", target_id)
