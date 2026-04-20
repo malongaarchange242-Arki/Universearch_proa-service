@@ -1,0 +1,404 @@
+{
+  "comment": "Mapping of semantic question codes to domains. Used by dynamic /questions/dynamic endpoint.",
+  "version": "1.1",
+  "last_updated": "2026-04-18",
+  
+  "semantic_to_domain_mapping": {
+    "q_passion_tech": ["technical", "innovation"],
+    "q_love_coding": ["technical"],
+    "q_solve_problems": ["logic", "analysis"],
+    "q_create_things": ["creativity", "innovation"],
+    "q_lead_team": ["leadership", "teamwork"],
+    "q_social_networks": ["teamwork", "communication"],
+    "q_learn_quickly": ["learning", "adaptability"],
+    "q_entrepreneurship": ["entrepreneurship", "management"],
+    "q_communicate_well": ["communication"],
+    "q_handle_pressure": ["resilience"],
+    "q_organize_tasks": ["organization", "management"],
+    "q_negotiate_deals": ["negotiation"],
+    "q_ethics_matter": ["ethics"],
+    "q_adapt_change": ["adaptability"],
+    "q_leadership_vision": ["leadership", "vision"],
+    "q_analysis_deep": ["analysis"],
+    "q_teamwork_prefer": ["teamwork"],
+    "q_creativity_art": ["creativity"],
+    "q_logic_puzzles": ["logic"],
+    "q_business_sense": ["entrepreneurship"],
+    "q_research_explore": ["learning", "analysis"],
+    "q_manage_people": ["management", "leadership"],
+    "q_innovation_new": ["innovation"],
+    "q_communication_skill": ["communication"],
+    "q_resilience_test": ["resilience"],
+    "q29": ["technical", "logic"],
+    "q_bach_research": ["analysis", "learning"],
+    "q_business_entrepreneurship": ["entrepreneurship", "management"],
+    "q_communication": ["communication"],
+    "q_creative_design": ["creativity", "innovation"],
+    "q_creative_storytelling": ["creativity", "communication"],
+    "q_innovation_change": ["innovation", "adaptability"],
+    "q_logic_systems": ["logic", "technical"],
+    "q_social_collaboration": ["teamwork", "communication"],
+    "q_tech_advanced_2": ["technical", "innovation"],
+
+    "q_science_vs_literature": {
+      "answer_mappings": {
+        "science": [
+          { "domain": "technical", "weight": 1.0 },
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "learning", "weight": 0.6 }
+        ],
+        "literature": [
+          { "domain": "communication", "weight": 0.8 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "litterature": [
+          { "domain": "communication", "weight": 0.8 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "humain": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "ethics", "weight": 0.5 },
+          { "domain": "leadership", "weight": 0.3 }
+        ]
+      },
+      "score_mappings": {
+        "1": [
+          { "domain": "technical", "weight": 1.0 },
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "learning", "weight": 0.6 }
+        ],
+        "2": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.6 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "4": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "ethics", "weight": 0.5 },
+          { "domain": "leadership", "weight": 0.3 }
+        ]
+      }
+    },
+
+    "q_field_interest": {
+      "answer_mappings": {
+        "tech": [
+          { "domain": "technical", "weight": 1.0 },
+          { "domain": "analysis", "weight": 0.6 },
+          { "domain": "innovation", "weight": 0.6 }
+        ],
+        "informatique": [
+          { "domain": "technical", "weight": 1.0 },
+          { "domain": "analysis", "weight": 0.6 },
+          { "domain": "innovation", "weight": 0.6 }
+        ],
+        "business": [
+          { "domain": "entrepreneurship", "weight": 0.9 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "organization", "weight": 0.6 },
+          { "domain": "finance", "weight": 0.4 }
+        ],
+        "gestion": [
+          { "domain": "entrepreneurship", "weight": 0.9 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "organization", "weight": 0.6 },
+          { "domain": "finance", "weight": 0.4 }
+        ],
+        "droit": [
+          { "domain": "law", "weight": 1.0 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "ethics", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.4 },
+          { "domain": "public", "weight": 0.4 }
+        ],
+        "juridique": [
+          { "domain": "law", "weight": 1.0 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "ethics", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.4 },
+          { "domain": "public", "weight": 0.4 }
+        ],
+        "art": [
+          { "domain": "creativity", "weight": 1.0 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "innovation", "weight": 0.3 }
+        ],
+        "design": [
+          { "domain": "creativity", "weight": 1.0 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "innovation", "weight": 0.3 }
+        ]
+      },
+      "score_mappings": {
+        "1": [
+          { "domain": "technical", "weight": 1.0 },
+          { "domain": "analysis", "weight": 0.6 },
+          { "domain": "innovation", "weight": 0.6 }
+        ],
+        "2": [
+          { "domain": "entrepreneurship", "weight": 0.9 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "organization", "weight": 0.6 }
+        ],
+        "3": [
+          { "domain": "law", "weight": 0.7 },
+          { "domain": "communication", "weight": 0.5 },
+          { "domain": "ethics", "weight": 0.5 },
+          { "domain": "teamwork", "weight": 0.3 }
+        ],
+        "4": [
+          { "domain": "creativity", "weight": 0.8 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.3 }
+        ]
+      }
+    },
+
+    "q_bac_type": {
+      "answer_mappings": {
+        "f1": [
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "f2": [
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "f3": [
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "c": [
+          { "domain": "technical", "weight": 0.7 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "d": [
+          { "domain": "technical", "weight": 0.7 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "s": [
+          { "domain": "technical", "weight": 0.7 },
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "f4": [
+          { "domain": "entrepreneurship", "weight": 0.8 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "finance", "weight": 0.5 }
+        ],
+        "g1": [
+          { "domain": "entrepreneurship", "weight": 0.8 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "finance", "weight": 0.5 }
+        ],
+        "g2": [
+          { "domain": "entrepreneurship", "weight": 0.8 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "finance", "weight": 0.5 }
+        ],
+        "g3": [
+          { "domain": "entrepreneurship", "weight": 0.8 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "finance", "weight": 0.5 }
+        ],
+        "a": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "a1": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "a2": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ],
+        "l": [
+          { "domain": "communication", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.7 },
+          { "domain": "learning", "weight": 0.4 }
+        ]
+      }
+    },
+
+    "q_long_focus": {
+      "default_domains": [
+        { "domain": "analysis", "weight": 1.0 },
+        { "domain": "learning", "weight": 0.8 },
+        { "domain": "resilience", "weight": 0.6 }
+      ],
+      "use_numeric_intensity": true
+    },
+
+    "q_risk_taking": {
+      "default_domains": [
+        { "domain": "entrepreneurship", "weight": 1.0 },
+        { "domain": "leadership", "weight": 0.7 },
+        { "domain": "adaptability", "weight": 0.6 }
+      ],
+      "use_numeric_intensity": true
+    },
+
+    "q_schedule_preference": {
+      "answer_mappings": {
+        "fixe": [
+          { "domain": "organization", "weight": 0.8 },
+          { "domain": "management", "weight": 0.5 }
+        ],
+        "stable": [
+          { "domain": "organization", "weight": 0.8 },
+          { "domain": "management", "weight": 0.5 }
+        ],
+        "hybride": [
+          { "domain": "adaptability", "weight": 0.7 },
+          { "domain": "organization", "weight": 0.4 }
+        ],
+        "variable": [
+          { "domain": "adaptability", "weight": 1.0 },
+          { "domain": "entrepreneurship", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.25 }
+        ],
+        "flexible": [
+          { "domain": "adaptability", "weight": 1.0 },
+          { "domain": "entrepreneurship", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.25 }
+        ]
+      },
+      "score_mappings": {
+        "1": [
+          { "domain": "organization", "weight": 0.8 },
+          { "domain": "management", "weight": 0.5 }
+        ],
+        "2": [
+          { "domain": "adaptability", "weight": 0.7 },
+          { "domain": "organization", "weight": 0.4 }
+        ],
+        "4": [
+          { "domain": "adaptability", "weight": 1.0 },
+          { "domain": "entrepreneurship", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.25 }
+        ]
+      }
+    },
+
+    "q_budget_monthly": {
+      "default_domains": [
+        { "domain": "organization", "weight": 0.15 },
+        { "domain": "adaptability", "weight": 0.15 }
+      ],
+      "reverse_scale": true,
+      "use_numeric_intensity": true
+    },
+
+    "q_effort_level": {
+      "default_domains": [
+        { "domain": "learning", "weight": 1.0 },
+        { "domain": "resilience", "weight": 0.8 },
+        { "domain": "analysis", "weight": 0.5 }
+      ],
+      "use_numeric_intensity": true
+    },
+
+    "q_math_problem_reaction": {
+      "score_mappings": {
+        "1": [
+          { "domain": "analysis", "weight": 0.2 },
+          { "domain": "technical", "weight": 0.2 }
+        ],
+        "2": [
+          { "domain": "analysis", "weight": 0.45 },
+          { "domain": "learning", "weight": 0.35 }
+        ],
+        "3": [
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "technical", "weight": 0.6 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "4": [
+          { "domain": "analysis", "weight": 1.0 },
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "resilience", "weight": 0.4 }
+        ]
+      }
+    },
+
+    "q_manual_vs_intellectual": {
+      "answer_mappings": {
+        "manual": [
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "adaptability", "weight": 0.4 }
+        ],
+        "intellectual": [
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "learning", "weight": 0.6 }
+        ],
+        "intellectuel": [
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "learning", "weight": 0.6 }
+        ]
+      },
+      "score_mappings": {
+        "1": [
+          { "domain": "technical", "weight": 0.8 },
+          { "domain": "adaptability", "weight": 0.4 }
+        ],
+        "2": [
+          { "domain": "technical", "weight": 0.5 },
+          { "domain": "analysis", "weight": 0.4 }
+        ],
+        "3": [
+          { "domain": "analysis", "weight": 0.6 },
+          { "domain": "learning", "weight": 0.5 }
+        ],
+        "4": [
+          { "domain": "analysis", "weight": 0.9 },
+          { "domain": "learning", "weight": 0.6 }
+        ]
+      }
+    },
+
+    "q_contradiction_social": {
+      "default_domains": [
+        { "domain": "communication", "weight": 1.0 },
+        { "domain": "teamwork", "weight": 0.9 }
+      ],
+      "reverse_scale": true,
+      "use_numeric_intensity": true
+    }
+  },
+
+  "dimensions_available": [
+    "logic",
+    "technical",
+    "creativity",
+    "teamwork",
+    "analysis",
+    "entrepreneurship",
+    "communication",
+    "resilience",
+    "innovation",
+    "leadership",
+    "management",
+    "negotiation",
+    "organization",
+    "adaptability",
+    "learning",
+    "ethics",
+    "vision",
+    "finance",
+    "law",
+    "public"
+  ],
+
+  "legacy_note": "The old system used q1-q24 format. This new system uses semantic codes from the dynamic questions endpoint."
+}

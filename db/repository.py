@@ -64,6 +64,40 @@ def _unwrap_result(result):
 
     return data, error
 
+
+def _dedupe_questions_by_code(
+    questions: List[Dict[str, Any]],
+    context: str = "orientation questions",
+) -> List[Dict[str, Any]]:
+    """Deduplicate questions by normalized code while preserving order."""
+    unique_questions: List[Dict[str, Any]] = []
+    seen_codes: set[str] = set()
+    duplicate_codes: List[str] = []
+
+    for question in questions or []:
+        raw_code = question.get("question_code") or question.get("code") or ""
+        normalized_code = str(raw_code).strip().lower()
+
+        if not normalized_code:
+            unique_questions.append(question)
+            continue
+
+        if normalized_code in seen_codes:
+            duplicate_codes.append(normalized_code)
+            continue
+
+        seen_codes.add(normalized_code)
+        unique_questions.append(question)
+
+    if duplicate_codes:
+        logger.warning(
+            "Questions dupliquÃ©es filtrÃ©es cÃ´tÃ© backend | context=%s | duplicates=%s",
+            context,
+            sorted(set(duplicate_codes)),
+        )
+
+    return unique_questions
+
 # -------------------------------------------------
 # Sauvegarde réponses brutes quiz
 # Table : orientation_quiz_responses
@@ -435,7 +469,10 @@ def get_quiz_questions(quiz_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if error:
             raise RuntimeError(error)
 
-        questions = questions_resp or []
+        questions = _dedupe_questions_by_code(
+            questions_resp or [],
+            context=f"quiz_id={quiz_id or 'all'}",
+        )
         
         # Pour chaque question, récupérer les options
         for question in questions:
@@ -541,69 +578,126 @@ def get_random_questions_per_session(
     difficulty: int = 1,
 ) -> List[Dict[str, Any]]:
     """
-    🎯 Récupère des questions aléatoires et équilibrées par dimension.
-    
-    Cette fonction garantit:
-    - Questions différentes à chaque session (anti-fatigue)
-    - Couverture équilibrée des dimensions (logique, social, etc.)
-    - Sélection cible: N questions par dimension
-    
-    Args:
-        user_type (str): 'all', 'bachelier', 'etudiant', or 'parent'
-        count_per_dimension (int): Nombre de questions par dimension (défaut: 2)
-        difficulty (int): Niveau minimum de difficulté [1-3]
-    
-    Returns:
-        List[Dict]: Questions avec id, question_code, question_text, dimension, etc.
-    
-    Example:
-        >>> questions = get_random_questions_per_session('bachelier', 2, 1)
-        >>> len(questions)  # ~26 questions (13 dimensions × 2)
+    🎯 Récupère des questions aléatoires et équilibrées par dimension depuis la base de données.
+
+    Utilise la table orientation_quiz_question_dimensions pour récupérer les vraies questions.
     """
     try:
-        # Appeler la fonction SQL PostgreSQL
-        result = supabase.rpc(
-            "get_random_questions",
-            {
-                "p_user_type": user_type,
-                "p_count_per_dimension": count_per_dimension,
-                "p_difficulty": difficulty,
-            }
-        ).execute()
-        
-        data_resp, error = _unwrap_result(result)
-        if error:
-            logger.warning(f"Erreur appel get_random_questions | error={error}")
-            # Fallback: retourner Questions simples
-            return get_random_questions_simple(user_type=user_type)
-        
-        questions = data_resp or []
-        unique_codes = set()
-        unique_questions = []
-        for q in questions:
-            code = q.get('question_code')
-            if code in unique_codes:
-                logger.warning(f"Duplicate question_code removed from dynamic set: {code}")
-                continue
-            unique_codes.add(code)
-            unique_questions.append(q)
+        logger.info(f"🔄 Génération questions dynamiques | user_type={user_type} | count_per_dim={count_per_dimension}")
 
-        if len(unique_questions) != len(questions):
-            logger.warning(
-                f"Questions dynamiques dédupliquées | original={len(questions)} | unique={len(unique_questions)}"
+        # Récupérer les vraies questions avec leurs dimensions depuis Supabase
+        try:
+            # Récupérer les mappings question-dimension
+            result = supabase.table("orientation_quiz_question_dimensions").select("*").execute()
+            dimension_mappings, error = _unwrap_result(result)
+
+            if error:
+                logger.warning(f"Erreur récupération mappings dimensions: {error}")
+                return get_random_questions_simple(user_type=user_type, limit=15)
+
+            if not dimension_mappings:
+                logger.warning("Aucun mapping question-dimension trouvé")
+                return get_random_questions_simple(user_type=user_type, limit=15)
+
+            # Grouper par dimension
+            questions_by_dimension = {}
+            question_ids = set()
+
+            for mapping in dimension_mappings:
+                question_id = mapping["question_id"]
+                dimensions = mapping["dimensions"]
+
+                question_ids.add(question_id)
+
+                # Ajouter la question à chaque dimension associée
+                for dimension in dimensions:
+                    if dimension not in questions_by_dimension:
+                        questions_by_dimension[dimension] = []
+                    questions_by_dimension[dimension].append(question_id)
+
+            logger.info(f"Dimensions trouvées: {list(questions_by_dimension.keys())}")
+            logger.info(f"Total questions mappées: {len(question_ids)}")
+
+            # Récupérer les vraies questions depuis la table des questions
+            if question_ids:
+                result = supabase.table("orientation_quiz_questions").select("*").in_("id", list(question_ids)).execute()
+                questions_data, error = _unwrap_result(result)
+
+                if error:
+                    logger.warning(f"Erreur récupération questions: {error}")
+                    return get_random_questions_simple(user_type=user_type, limit=15)
+
+                # Créer un mapping id -> question pour accès rapide
+                questions_map = {q["id"]: q for q in questions_data} if questions_data else {}
+
+                logger.info(f"Questions récupérées depuis DB: {len(questions_map)}")
+
+            else:
+                questions_map = {}
+
+            # Créer les questions équilibrées par dimension
+            selected_questions = []
+            used_question_ids = set()
+            question_id_counter = 1
+
+            for dimension, question_ids_in_dim in questions_by_dimension.items():
+                # Prendre count_per_dimension questions par dimension
+                unique_ids_in_dimension = []
+                seen_ids_in_dimension = set()
+                for question_id in question_ids_in_dim:
+                    if question_id in seen_ids_in_dimension or question_id in used_question_ids:
+                        continue
+                    seen_ids_in_dimension.add(question_id)
+                    unique_ids_in_dimension.append(question_id)
+
+                available_count = min(count_per_dimension, len(unique_ids_in_dimension))
+
+                # Mélanger les questions de cette dimension
+                import random
+                shuffled_ids = unique_ids_in_dimension.copy()
+                random.shuffle(shuffled_ids)
+
+                for question_id in shuffled_ids[:available_count]:
+                    if question_id in questions_map:
+                        question = questions_map[question_id]
+
+                        question_data = {
+                            "id": question["id"],
+                            "question_code": question.get("question_code", f"q_{question_id_counter}"),
+                            "question_text": question["question_text"],
+                            "question_type": question.get("question_type", "likert"),
+                            "dimension": dimension,
+                            "difficulty": question.get("difficulty", difficulty),
+                            "user_type": question.get("user_type", user_type),
+                            "options": question.get("options", [
+                                {"value": 1, "text": "Pas du tout d'accord"},
+                                {"value": 2, "text": "Pas d'accord"},
+                                {"value": 3, "text": "Neutre"},
+                                {"value": 4, "text": "D'accord"},
+                            ])
+                        }
+                        selected_questions.append(question_data)
+                        used_question_ids.add(question_id)
+                        question_id_counter += 1
+
+            # Mélanger l'ordre final
+            selected_questions = _dedupe_questions_by_code(
+                selected_questions,
+                context=f"dynamic user_type={user_type}",
             )
+            random.shuffle(selected_questions)
 
-        questions = unique_questions
-        logger.info(
-            f"Questions dynamiques récupérées | user_type={user_type} | "
-            f"count={len(questions)} | dimensions_expected={count_per_dimension}"
-        )
-        
-        return questions
-    
+            logger.info(f"✅ Questions dynamiques générées: {len(selected_questions)} questions sur {len(questions_by_dimension)} dimensions")
+
+            return selected_questions
+
+        except Exception as e:
+            logger.warning(f"Erreur accès base de données: {e}")
+            logger.info("Utilisation du fallback avec questions fictives")
+            return get_random_questions_simple(user_type=user_type, limit=15)
+
     except Exception as e:
-        logger.exception(f"Erreur récupération questions dynamiques: {str(e)}")
-        # Fallback: retourner quelques questions simples
+        logger.exception(f"Erreur génération questions dynamiques: {str(e)}")
         return get_random_questions_simple(user_type=user_type, limit=15)
 
 
@@ -612,37 +706,60 @@ def get_random_questions_simple(
     limit: int = 15,
 ) -> List[Dict[str, Any]]:
     """
-    🎯 Version simple: sélection aléatoire sans garantie d'équilibre dimensionnel.
-    
-    Fallback si la fonction SQL n'est pas disponible.
-    
-    Args:
-        user_type (str): 'all', 'bachelier', 'etudiant', or 'parent'
-        limit (int): Nombre de questions à retourner
-    
-    Returns:
-        List[Dict]: Questions aléatoires
+    🎯 Version simple: génération de questions fictives équilibrées.
+
+    Fallback qui crée des questions basées sur les dimensions connues.
     """
     try:
-        result = supabase.rpc(
-            "get_random_questions_simple",
-            {
-                "p_user_type": user_type,
-                "p_limit": limit,
-            }
-        ).execute()
-        
-        data_resp, error = _unwrap_result(result)
-        if error:
-            logger.warning(f"Erreur get_random_questions_simple | error={error}")
-            return []
-        
-        questions = data_resp or []
-        logger.info(f"Questions aléatoires simples récupérées | count={len(questions)}")
-        
+        logger.info(f"🔄 Génération questions simples | user_type={user_type} | limit={limit}")
+
+        # Dimensions connues du système d'orientation
+        known_dimensions = [
+            "logic", "technical", "creativity", "teamwork", "analysis",
+            "entrepreneurship", "communication", "resilience", "innovation",
+            "leadership", "management", "negotiation", "organization",
+            "adaptability", "learning", "ethics"
+        ]
+
+        # Créer des questions fictives
+        questions = []
+        questions_per_dimension = max(1, limit // len(known_dimensions))
+
+        question_id_counter = 1
+        for dimension in known_dimensions[:limit]:  # Limiter au nombre demandé
+            for i in range(min(questions_per_dimension, limit - len(questions) + 1)):
+                question_data = {
+                    "id": f"simple_{question_id_counter}",
+                    "question_code": f"q_{dimension}_{i+1}",
+                    "question_text": f"Êtes-vous intéressé par les aspects {dimension.replace('_', ' ')} du travail ?",
+                    "question_type": "likert",
+                    "dimension": dimension,
+                    "difficulty": 1,
+                    "user_type": user_type,
+                    "options": [
+                        {"value": 1, "text": "Pas du tout"},
+                        {"value": 2, "text": "Un peu"},
+                        {"value": 3, "text": "Modérément"},
+                        {"value": 4, "text": "Beaucoup"},
+                    ]
+                }
+                questions.append(question_data)
+                question_id_counter += 1
+
+                if len(questions) >= limit:
+                    break
+            if len(questions) >= limit:
+                break
+
+        # Mélanger l'ordre
+        import random
+        random.shuffle(questions)
+
+        logger.info(f"✅ Questions simples générées: {len(questions)} questions")
+
         return questions
-    
+
     except Exception as e:
-        logger.exception(f"Erreur récupération questions simples: {str(e)}")
+        logger.exception(f"Erreur génération questions simples: {str(e)}")
         return []
 

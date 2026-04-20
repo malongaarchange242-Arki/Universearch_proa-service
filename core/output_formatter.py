@@ -46,12 +46,30 @@ class ProaResponse:
         normalized_fields = []
         if recommended_fields:
             for field in recommended_fields:
-                normalized_fields.append({
+                normalized_field = {
                     "field_name": field.get("field_name") or field.get("field") or "Unknown",
                     "score": float(field.get("score", 0.0)),
                     "reason": field.get("reason", "Profil adapté"),
                     "category": field.get("category", "General"),
-                })
+                }
+                for extra_key in (
+                    "cluster",
+                    "distance",
+                    "similarity",
+                    "profile_score",
+                    "bac_score",
+                    "bac_match_score",
+                    "bac_track",
+                    "decision_score",
+                    "base_score",
+                ):
+                    if extra_key in field:
+                        normalized_field[extra_key] = field.get(extra_key)
+
+                if "contributions" in field:
+                    normalized_field["contributions"] = field.get("contributions")
+
+                normalized_fields.append(normalized_field)
         
         return {
             "user_id": user_id,

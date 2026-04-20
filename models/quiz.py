@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Dict, Optional, Union, List
+from typing import Any, Dict, Optional, Union, List
 from enum import Enum
 
 
@@ -72,6 +72,10 @@ class QuizSubmission(BaseModel):
     quiz_version: str = "1.0"
     orientation_type: str = Field(default="field", description="Type d'orientation: 'field' ou 'institution'")
     responses: Dict[str, Union[int, float]]
+    response_metadata: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Metadonnees facultatives de reponse (raw_value, selected_text, question_type, etc.)",
+    )
 
     @field_validator("responses", mode="before")
     @classmethod

@@ -15,6 +15,26 @@ logger = logging.getLogger("orientation.feature_engineering")
 # GLOBAL CONFIG — Loaded at startup
 # ==================================================
 ORIENTATION_CONFIG: Dict[str, Any] = {}
+SEMANTIC_MAPPING: Dict[str, Any] = {}
+
+
+def _normalize_response_score(response_value: Any, max_score: float, exponent: float = 1.0) -> float:
+    """Safely normalize arbitrary numeric responses to [0, 1]."""
+    try:
+        numeric_value = float(response_value)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if max_score <= 0:
+        return 0.0
+
+    clipped_value = max(0.0, min(float(max_score), numeric_value))
+    normalized = clipped_value / float(max_score)
+
+    if exponent != 1.0 and normalized > 0.0:
+        normalized = normalized ** exponent
+
+    return max(0.0, min(1.0, normalized))
 
 def _load_orientation_config() -> Dict[str, Any]:
     """Load configuration from orientation_config.json"""
@@ -32,8 +52,26 @@ def _load_orientation_config() -> Dict[str, Any]:
         logger.error(f"❌ Failed to load orientation_config.json: {e}")
         return {"max_score": 4, "domains": {}, "skills": {}}
 
+def _load_semantic_mapping() -> Dict[str, Any]:
+    """Load semantic question code to domain mapping"""
+    try:
+        mapping_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "semantic_question_mapping.json",
+        )
+        with open(mapping_path, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+        logger.info(f"✅ Loaded semantic_question_mapping.json: {len(mapping.get('semantic_to_domain_mapping', {}))} mappings")
+        return mapping
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load semantic_question_mapping.json: {e}")
+        logger.warning(f"   Will fall back to q1-q24 numeric format only")
+        return {"semantic_to_domain_mapping": {}}
+
 # Load config at module startup
 ORIENTATION_CONFIG = _load_orientation_config()
+SEMANTIC_MAPPING = _load_semantic_mapping()
 
 # ==================================================
 # IN-MEMORY CACHE pour éviter N+1 queries
@@ -75,6 +113,271 @@ class MappingCache:
 
 # Cache global (singleton)
 _mapping_cache = MappingCache(ttl_seconds=3600)  # 1 heure
+
+
+# ==================================================
+# FONCTION: Convertir codes sémantiques en domaines
+# ==================================================
+
+def convert_semantic_to_domain_mapping(
+    responses: Dict[str, float],
+    response_metadata: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """
+    Convert semantic question codes (e.g., q_passion_tech) to domain mapping format.
+    
+    This handles the new dynamic questions system which uses semantic codes instead of q1-q24.
+    
+    Args:
+        responses: {"q_passion_tech": 3, "q_social_networks": 4, ...}
+    
+    Returns:
+        Mapping: question_code -> semantic definition from config.
+        Definitions may be legacy lists or richer per-answer objects.
+    """
+    semantic_to_domain = SEMANTIC_MAPPING.get("semantic_to_domain_mapping", {})
+    
+    if not semantic_to_domain:
+        logger.warning("❌ Semantic mapping is empty - questions may not be properly mapped to domains")
+        return {}
+    
+    # Build mapping from semantic definitions
+    mapping = {}
+    matched_questions = []
+    unmatched_questions = []
+    
+    for question_code in responses.keys():
+        if question_code in semantic_to_domain:
+            mapping[question_code] = semantic_to_domain[question_code]
+            matched_questions.append(question_code)
+        else:
+            unmatched_questions.append(question_code)
+    
+    match_rate = len(matched_questions) / len(responses) * 100 if responses else 0
+    logger.info(f"🔄 Semantic code conversion:")
+    logger.info(f"   Matched: {len(matched_questions)}/{len(responses)} ({match_rate:.0f}%)")
+    if matched_questions:
+        logger.info(f"   Examples: {matched_questions[:3]}")
+    if unmatched_questions:
+        logger.warning(f"   Unmatched codes: {unmatched_questions[:5]}")
+    
+    return mapping
+
+
+def _normalize_semantic_answer(value: Any) -> str:
+    """Normalize raw answer values from the frontend metadata."""
+    if value is None:
+        return ""
+    return str(value).strip().lower()
+
+
+def _normalize_semantic_entry_list(entries: Any) -> List[Dict[str, Any]]:
+    """Coerce semantic mapping entries to a consistent [{domain, weight}] format."""
+    normalized_entries: List[Dict[str, Any]] = []
+
+    if isinstance(entries, str):
+        normalized_entries.append({"domain": entries, "weight": 1.0})
+        return normalized_entries
+
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, str):
+                normalized_entries.append({"domain": entry, "weight": 1.0})
+            elif isinstance(entry, dict) and entry.get("domain"):
+                normalized_entries.append({
+                    "domain": str(entry["domain"]),
+                    "weight": float(entry.get("weight", 1.0)),
+                })
+
+    return normalized_entries
+
+
+def _normalize_semantic_intensity(
+    response_value: Any,
+    max_score: float,
+    reverse_scale: bool = False,
+) -> float:
+    """Convert a numeric response to [0, 1] intensity, optionally reversed."""
+    try:
+        numeric_value = float(response_value)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if max_score <= 0:
+        return 0.0
+
+    numeric_value = max(1.0, min(float(max_score), numeric_value))
+    if reverse_scale:
+        numeric_value = (float(max_score) + 1.0) - numeric_value
+
+    return max(0.0, min(1.0, numeric_value / float(max_score)))
+
+
+def _resolve_semantic_entries_for_response(
+    question_code: str,
+    response_value: Any,
+    semantic_definition: Any,
+    response_metadata: Optional[Dict[str, Any]],
+    max_score: float,
+) -> List[Dict[str, Any]]:
+    """
+    Resolve the domain contributions for one semantic question.
+
+    Supported shapes:
+    - legacy list: ["technical", "innovation"]
+    - rich object with answer_mappings / score_mappings / default_domains
+    """
+    if semantic_definition is None:
+        return []
+
+    if isinstance(semantic_definition, list):
+        intensity = _normalize_semantic_intensity(response_value, max_score)
+        return [
+            {
+                "domain": entry["domain"],
+                "score": round(intensity * float(entry.get("weight", 1.0)), 4),
+            }
+            for entry in _normalize_semantic_entry_list(semantic_definition)
+        ]
+
+    if not isinstance(semantic_definition, dict):
+        logger.warning(f"⚠️ Unsupported semantic definition for {question_code}: {semantic_definition}")
+        return []
+
+    metadata = response_metadata or {}
+    raw_answer = _normalize_semantic_answer(metadata.get("raw_value"))
+    selected_text = _normalize_semantic_answer(metadata.get("selected_text"))
+
+    answer_mappings = semantic_definition.get("answer_mappings", {}) or {}
+    normalized_answer_mappings = {
+        _normalize_semantic_answer(key): value
+        for key, value in answer_mappings.items()
+    }
+
+    selected_entries: List[Dict[str, Any]] = []
+    intensity = _normalize_semantic_intensity(
+        response_value,
+        max_score,
+        reverse_scale=bool(semantic_definition.get("reverse_scale", False)),
+    )
+
+    if raw_answer and raw_answer in normalized_answer_mappings:
+        selected_entries = _normalize_semantic_entry_list(normalized_answer_mappings[raw_answer])
+        if not semantic_definition.get("use_numeric_intensity", False):
+            intensity = 1.0
+    elif selected_text and selected_text in normalized_answer_mappings:
+        selected_entries = _normalize_semantic_entry_list(normalized_answer_mappings[selected_text])
+        if not semantic_definition.get("use_numeric_intensity", False):
+            intensity = 1.0
+    else:
+        score_mappings = semantic_definition.get("score_mappings", {}) or {}
+        try:
+            score_key = str(int(float(response_value)))
+        except (TypeError, ValueError):
+            score_key = ""
+
+        if score_key and score_key in score_mappings:
+            selected_entries = _normalize_semantic_entry_list(score_mappings[score_key])
+            if not semantic_definition.get("use_numeric_intensity", False):
+                intensity = 1.0
+        else:
+            default_entries = semantic_definition.get("default_domains", semantic_definition.get("domains", []))
+            selected_entries = _normalize_semantic_entry_list(default_entries)
+
+    resolved_entries: List[Dict[str, Any]] = []
+    for entry in selected_entries:
+        resolved_entries.append({
+            "domain": entry["domain"],
+            "score": round(intensity * float(entry.get("weight", 1.0)), 4),
+        })
+
+    return resolved_entries
+
+
+def _compute_features_from_semantic_mapping(
+    responses: Dict[str, float],
+    semantic_mapping: Dict[str, Any],
+    max_score: float,
+    orientation_type: str = "field",
+    response_metadata: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, float]:
+    """
+    Compute features from semantic question definitions.
+
+    This supports both legacy semantic mappings and richer answer-aware mappings
+    used by the dynamic quiz flow.
+    """
+    domain_scores: Dict[str, List[float]] = {}
+    match_stats = {"matched": 0, "total": len(semantic_mapping), "missing": 0, "resolved": 0}
+
+    for question_code, semantic_definition in semantic_mapping.items():
+        response_value = responses.get(question_code)
+
+        if response_value is None:
+            match_stats["missing"] += 1
+            logger.debug(f"   ⚠️ {question_code}: pas de réponse")
+            continue
+
+        match_stats["matched"] += 1
+
+        question_metadata = (response_metadata or {}).get(question_code, {})
+        resolved_entries = _resolve_semantic_entries_for_response(
+            question_code=question_code,
+            response_value=response_value,
+            semantic_definition=semantic_definition,
+            response_metadata=question_metadata,
+            max_score=max_score,
+        )
+
+        if not resolved_entries:
+            logger.debug(f"   ⚠️ {question_code}: aucune entrée sémantique résolue")
+            continue
+
+        match_stats["resolved"] += 1
+        for entry in resolved_entries:
+            domain_name = entry["domain"]
+            domain_score = float(entry["score"])
+
+            if domain_name not in domain_scores:
+                domain_scores[domain_name] = []
+
+            domain_scores[domain_name].append(domain_score)
+            logger.debug(
+                f"   {question_code} -> {domain_name}: "
+                f"{domain_score:.3f} (meta={question_metadata})"
+            )
+
+    features: Dict[str, float] = {}
+    for domain_name, scores in domain_scores.items():
+        if scores:
+            avg = sum(scores) / len(scores)
+            feature_key = f"domain_{domain_name}"
+            features[feature_key] = round(avg, 4)
+            logger.info(f"✅ {domain_name:20s}: {avg:.4f} (n={len(scores)})")
+
+    logger.info(f"\n{'='*70}")
+    logger.info(f"📊 FEATURE ENGINEERING STATS:")
+    logger.info(f"   Questions mappées: {match_stats['total']}")
+    logger.info(f"   Réponses matched: {match_stats['matched']}")
+    logger.info(f"   Réponses résolues: {match_stats['resolved']}")
+    logger.info(f"   Réponses manquantes: {match_stats['missing']}")
+    if match_stats["total"] > 0:
+        logger.info(f"   Couverture: {(match_stats['matched']/match_stats['total']*100):.0f}%")
+    logger.info(f"   Features calculées: {len(features)}")
+
+    non_zero = {k: v for k, v in features.items() if v > 0}
+    if non_zero:
+        logger.info(f"   Features non-zéro: {len(non_zero)}")
+    else:
+        logger.error(f"   ❌ ALERTE: Aucune feature > 0!")
+
+    logger.info(f"{'='*70}\n")
+
+    if not features:
+        logger.error("❌ Aucune feature calculée - returning empty")
+        return {}
+
+    return features
 
 
 # ==================================================
@@ -226,7 +529,7 @@ def _load_json_fallback() -> Dict[str, List[Dict[str, Any]]]:
 # FONCTION PRINCIPALE: Calculer les features
 # ==================================================
 
-def build_features(
+def build_features_db_driven(
     responses: Dict[str, float],
     supabase: Client,
     orientation_type: str = "field"
@@ -302,7 +605,7 @@ def build_features(
                 
                 # Formule: (value / 4) * weight
                 # value ∈ [1, 4], donc (value / 4) ∈ [0.25, 1]
-                weighted_score = (response_value / 4.0) * weight
+                weighted_score = _normalize_response_score(response_value, 4.0) * weight
                 
                 if domain_name not in domain_scores:
                     domain_scores[domain_name] = []
@@ -355,19 +658,114 @@ def build_features(
         return {}
 
 
-def build_features(responses: Dict[str, float], orientation_type: str = "field") -> Dict[str, float]:
+
+def _compute_features_from_domain_list(
+    responses: Dict[str, float],
+    domain_mapping: Dict[str, List[Dict[str, Any]]],
+    max_score: float,
+    orientation_type: str = "field"
+) -> Dict[str, float]:
+    """
+    Helper function to compute features from a domain list mapping.
+    
+    Used for both semantic code conversion and DB-driven mappings.
+    
+    Args:
+        responses: Question responses
+        domain_mapping: {question_code: [{domain: ..., weight: ...}]}
+        max_score: Maximum question score (typically 4)
+        orientation_type: "field" or "institution"
+    
+    Returns:
+        Features dict: {domain_logic: 0.62, ...}
+    """
+    domain_scores: Dict[str, List[float]] = {}
+    match_stats = {"matched": 0, "total": len(domain_mapping), "missing": 0}
+    
+    for question_code, domain_list in domain_mapping.items():
+        response_value = responses.get(question_code)
+        
+        if response_value is None:
+            match_stats["missing"] += 1
+            logger.debug(f"   ⚠️ {question_code}: pas de réponse")
+            continue
+        
+        match_stats["matched"] += 1
+        
+        # Score chaque domaine lié à cette question
+        for domain_info in domain_list:
+            domain_name = domain_info.get("domain", "unknown")
+            weight = domain_info.get("weight", 1.0)
+            
+            weighted_score = _normalize_response_score(response_value, max_score) * weight
+            
+            if domain_name not in domain_scores:
+                domain_scores[domain_name] = []
+            
+            domain_scores[domain_name].append(weighted_score)
+            logger.debug(f"   {question_code} → {domain_name}: {response_value}/{max_score} × {weight} = {weighted_score:.3f}")
+    
+    # Agréger par domaine (moyenne)
+    features: Dict[str, float] = {}
+    
+    for domain_name, scores in domain_scores.items():
+        if scores:
+            avg = sum(scores) / len(scores)
+            feature_key = f"domain_{domain_name}"
+            features[feature_key] = round(avg, 4)
+            logger.info(f"✅ {domain_name:20s}: {avg:.4f} (n={len(scores)})")
+    
+    logger.info(f"\n{'='*70}")
+    logger.info(f"📊 FEATURE ENGINEERING STATS:")
+    logger.info(f"   Questions mappées: {match_stats['total']}")
+    logger.info(f"   Réponses matched: {match_stats['matched']}")
+    logger.info(f"   Réponses manquantes: {match_stats['missing']}")
+    if match_stats['total'] > 0:
+        logger.info(f"   Couverture: {(match_stats['matched']/match_stats['total']*100):.0f}%")
+    logger.info(f"   Features calculées: {len(features)}")
+    
+    non_zero = {k: v for k, v in features.items() if v > 0}
+    if non_zero:
+        logger.info(f"   Features non-zéro: {len(non_zero)}")
+    else:
+        logger.error(f"   ❌ ALERTE: Aucune feature > 0!")
+    
+    logger.info(f"{'='*70}\n")
+    
+    if not features:
+        logger.error("❌ Aucune feature calculée - returning empty")
+        return {}
+    
+    return features
+
+
+def build_features(
+    responses: Dict[str, float],
+    orientation_type: str = "field",
+    response_metadata: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, float]:
     """
     🔥 ULTRA-SMART version: Adaptive mapping with fallback
     
     The brain of the system. Handles 3 scenarios:
-    1. Perfect match: Config keys match response keys exactly
-    2. Partial match: Some config keys exist in responses  
-    3. No match: Create smart fallback based on responses
+    1. NEW: Semantic codes (q_passion_tech, q_social_networks, etc.) → maps using semantic mapping
+    2. Perfect match: Config keys match response keys exactly (q1-q24)
+    3. Partial match: Some config keys exist in responses  
+    4. No match: Create smart fallback based on responses
     
     Maps quiz responses (1-4 scale) to domain/skill features (0-1)
     
-    ✨ NOW WITH NORMALIZATION: Converts Q1→q1 to match config
+    ✨ NOW WITH SEMANTIC CODE SUPPORT: Handles both q1-q24 and q_semantic_codes
     """
+    # Backward compatibility: older callers still pass (responses, supabase, orientation_type)
+    if not isinstance(orientation_type, str):
+        logger.info("ℹ️ Legacy build_features signature detected; ignoring positional supabase argument")
+        if isinstance(response_metadata, str):
+            orientation_type = response_metadata
+        else:
+            orientation_type = "field"
+        response_metadata = None
+
     if not responses:
         logger.warning("❌ No responses provided - returning emergency default")
         return {"domain_technical": 0.5, "domain_business": 0.4, "skill_logic": 0.5}
@@ -383,7 +781,36 @@ def build_features(responses: Dict[str, float], orientation_type: str = "field")
         
         features = {}
         
-        # 📊 DETAILED DIAGNOSTIC
+        # 🔄 STEP 0: Check if responses use semantic codes (new system) or numeric codes (old system)
+        first_code = list(responses.keys())[0] if responses else ""
+        # Updated detection: semantic codes are any 'q' codes that are not simple q1-q24
+        expected_numeric_codes = {f"q{i}" for i in range(1, 25)}  # q1 to q24
+        uses_semantic_codes = first_code.startswith("q") and first_code not in expected_numeric_codes
+        
+        if uses_semantic_codes:
+            logger.info(f"🔄 SEMANTIC QUESTION CODES DETECTED: {first_code}")
+            logger.info(f"   Using semantic_question_mapping.json for domain mapping")
+            
+            # Convert semantic codes to domain mapping format
+            semantic_mapping = convert_semantic_to_domain_mapping(
+                responses,
+                response_metadata=response_metadata,
+            )
+            
+            if semantic_mapping:
+                logger.info(f"✅ Successfully converted {len(semantic_mapping)} semantic codes to domains")
+                # Use semantic mapping instead of config
+                return _compute_features_from_semantic_mapping(
+                    responses,
+                    semantic_mapping,
+                    max_score,
+                    orientation_type,
+                    response_metadata=response_metadata,
+                )
+            else:
+                logger.warning(f"⚠️ Semantic code conversion failed or empty - will try numeric format as fallback")
+        
+        # 📊 DETAILED DIAGNOSTIC (for numeric codes)
         logger.info(f"\n{'='*70}")
         logger.info(f"🔍 BUILD_FEATURES DIAGNOSTIC")
         logger.info(f"{'='*70}")
@@ -423,7 +850,7 @@ def build_features(responses: Dict[str, float], orientation_type: str = "field")
             for q_id in question_ids:
                 if q_id in responses:
                     raw_score = responses[q_id]
-                    normalized = (raw_score / max_score) ** 1.5
+                    normalized = _normalize_response_score(raw_score, max_score, exponent=1.5)
                     matched_scores.append(normalized)
                     matched_ids.append((q_id, normalized))
                 else:
@@ -450,7 +877,7 @@ def build_features(responses: Dict[str, float], orientation_type: str = "field")
                 for q_id in question_ids:
                     if q_id in responses:
                         raw_score = responses[q_id]
-                        normalized = (raw_score / max_score) ** 1.5
+                        normalized = _normalize_response_score(raw_score, max_score, exponent=1.5)
                         matched_scores.append(normalized)
                         matched_ids.append((q_id, normalized))
                 

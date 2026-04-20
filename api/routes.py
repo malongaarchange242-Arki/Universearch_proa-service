@@ -14,6 +14,7 @@ from core.recommendations import compute_recommended_fields, compute_recommended
 from core.career_recommendations import compute_career_recommendations  # 🎯 NEW
 from core.output_formatter import ProaResponse
 from core.auth import get_current_user_profile, get_user_profile_dict  # 🔐 NEW - Authentification JWT
+from core.confidence_scoring import calculate_confidence, add_confidence_to_response  # ✅ PHASE 1: Confidence Scoring
 from models.profile import OrientationProfile
 from models.quiz import QuizSubmission
 from db.repository import (
@@ -58,6 +59,29 @@ class OrientationFeedback(BaseModel):
 # -------------------------------------------------
 # Endpoint principal — COMPUTE PROFIL (PROA)
 # -------------------------------------------------
+def _extract_bac_type_from_metadata(response_metadata: Dict[str, Dict[str, Any]] | None) -> str | None:
+    if not isinstance(response_metadata, dict):
+        return None
+
+    prioritized_keys = [
+        key for key in response_metadata.keys()
+        if key == "q_bac_type"
+    ]
+    fallback_keys = [
+        key for key in response_metadata.keys()
+        if key not in prioritized_keys and ("bac" in key.lower() or "serie" in key.lower())
+    ]
+
+    for key in prioritized_keys + fallback_keys:
+        metadata = response_metadata.get(key) or {}
+        for field in ("raw_value", "selected_text", "value", "label"):
+            value = metadata.get(field)
+            if value not in (None, ""):
+                return str(value)
+
+    return None
+
+
 @router.post("/compute", status_code=201)
 def compute_orientation(payload: QuizSubmission):
     """
@@ -91,7 +115,11 @@ def compute_orientation(payload: QuizSubmission):
         )
 
         # 2️⃣ Feature engineering réel (✨ MAINTENANT PILOTÉ PAR LA DB!)
-        features = build_features(payload.responses, payload.orientation_type)
+        features = build_features(
+            payload.responses,
+            payload.orientation_type,
+            response_metadata=payload.response_metadata,
+        )
         logger.debug(f"Features extraites: {len(features)}")
 
         # 3️⃣ Construire profil OrientationProfile à partir des features
@@ -103,26 +131,33 @@ def compute_orientation(payload: QuizSubmission):
                 domains[key.replace("domain_", "")] = value
             elif key.startswith("skill_"):
                 skills[key.replace("skill_", "")] = value
+
+        bac_type = _extract_bac_type_from_metadata(payload.response_metadata)
+        recommendation_profile = {"domains": domains, "skills": skills}
+        if bac_type:
+            recommendation_profile["context"] = {"bac_type": bac_type}
+        else:
+            logger.warning(
+                "Missing bac_type -> fallback mode | user=%s | quiz=%s",
+                payload.user_id,
+                payload.quiz_version,
+            )
         
         profile_obj = OrientationProfile(domains=domains, skills=skills)
 
         # 4️⃣ Calcul profil vectoriel
         vector = compute_profile(profile_obj)
 
-        # 5️⃣ Calcul confiance (variance du vecteur)
-        positive_values = [v for v in vector if v > 0]
-        if positive_values:
-            avg = sum(positive_values) / len(positive_values)
-            variance = sum((v - avg) ** 2 for v in positive_values) / len(positive_values)
-            confidence = round(1.0 - min(variance, 1.0), 4)  # Haute variance = basse confiance
-        else:
-            confidence = 0.0
+        # 5️⃣ Calcul confiance AVANCÉE avec breakdown (✅ PHASE 1)
+        confidence_info = calculate_confidence(payload.responses, expected_question_count=24)
+        confidence = confidence_info["confidence_score"]
+        reliability_label = confidence_info["reliability_label"]
+        confidence_breakdown = confidence_info["confidence_breakdown"]
+        confidence_warnings = confidence_info["confidence_warnings"]
 
-        # Améliorer la confiance avec ratio réponses/total
-        total_questions = len(ORIENTATION_CONFIG.get("domains", {})) + len(ORIENTATION_CONFIG.get("skills", {}))
-        answered_questions = len(payload.responses)
-        if total_questions > 0:
-            confidence = round(confidence * (answered_questions / total_questions), 4)
+        logger.info(f"🎯 Confiance calculée: {confidence:.2f} ({reliability_label})")
+        if confidence_warnings:
+            logger.warning(f"   Warnings: {confidence_warnings}")
 
         # 6️⃣ Sauvegarde profil (+ retour profile_id pour PORA)
         profile_id = save_orientation_profile(
@@ -135,17 +170,17 @@ def compute_orientation(payload: QuizSubmission):
         # 7️⃣ Calcul des filières recommandées (top N)
         try:
             if payload.orientation_type == "institution":
-                recommended = compute_recommended_institutions({"domains": domains, "skills": skills}, top_n=5)
+                recommended = compute_recommended_institutions(recommendation_profile, top_n=5)
             else:
-                recommended = compute_recommended_fields({"domains": domains, "skills": skills}, top_n=5)
+                recommended = compute_recommended_fields(recommendation_profile, top_n=5)
         except Exception:
             logger.exception("Erreur calcul recommandations")
             recommended = {"recommended_fields": []} if payload.orientation_type == "field" else {"recommended_institutions": []}
 
         logger.info(f"Profil créé: confidence={confidence}, vector_size={len(vector)}")
 
-        # ✅ Standardiser la réponse avec ProaResponse (+ profile_id pour traçabilité)
-        return ProaResponse.compute_orientation(
+        # ✅ Standardiser la réponse avec ProaResponse + confiance AVANCÉE (+ profile_id pour traçabilité)
+        base_response = ProaResponse.compute_orientation(
             user_id=payload.user_id,
             profile=vector,
             confidence=confidence,
@@ -155,6 +190,13 @@ def compute_orientation(payload: QuizSubmission):
             field_scores=recommended.get("field_scores", {}),
             insight=recommended.get("insight", "")
         )
+        
+        # 🆕 Ajouter les informations de confiance détaillées (✅ PHASE 1)
+        base_response["reliability_label"] = reliability_label
+        base_response["confidence_breakdown"] = confidence_breakdown
+        base_response["confidence_warnings"] = confidence_warnings
+        
+        return base_response
 
     except ValueError as ve:
         # Erreur de validation (données invalides)
@@ -180,7 +222,10 @@ def compute_orientation_score_only(payload: QuizSubmission):
     Calcule uniquement le score d'orientation (utilisé par PORA).
     """
     try:
-        features = build_features(payload.responses)
+        features = build_features(
+            payload.responses,
+            response_metadata=payload.response_metadata,
+        )
         
         domains = {}
         skills = {}
@@ -318,6 +363,84 @@ def get_questions_endpoint():
         raise
     except Exception as e:
         logger.exception(f"Erreur récupération questions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur serveur interne"
+        )
+
+
+# -------------------------------------------------
+# Questions dynamiques / Non-répétitives
+# -------------------------------------------------
+@router.get("/questions/dynamic")
+def get_dynamic_questions_endpoint(
+    user_type: str = "all",
+    count_per_dimension: int = 2,
+    difficulty: int = 1
+):
+    """
+    🎯 Récupère des questions dynamiques équilibrées par dimension.
+
+    Cette endpoint garantit:
+    - Questions différentes à chaque session (anti-fatigue)
+    - Couverture équilibrée des dimensions (logique, social, etc.)
+    - Sélection cible: N questions par dimension
+
+    Args:
+        user_type (str): 'all', 'bachelier', 'etudiant', or 'parent'
+        count_per_dimension (int): Nombre de questions par dimension (défaut: 2)
+        difficulty (int): Niveau minimum de difficulté [1-3] (défaut: 1)
+
+    Returns:
+        Dict: {
+            "questions": [...],
+            "total_count": int,
+            "dimensions_covered": int
+        }
+    """
+    try:
+        logger.info(f"🎯 Questions dynamiques demandées | user_type={user_type} | count_per_dim={count_per_dimension} | difficulty={difficulty}")
+
+        # Récupérer les questions dynamiques
+        questions = get_random_questions_per_session(
+            user_type=user_type,
+            count_per_dimension=count_per_dimension,
+            difficulty=difficulty
+        )
+
+        if not questions:
+            logger.warning("Aucune question dynamique trouvée, tentative de fallback")
+            # Fallback vers questions simples
+            questions = get_random_questions_simple(user_type=user_type, limit=15)
+
+        if not questions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Aucune question disponible"
+            )
+
+        # Analyser la couverture dimensionnelle
+        dimensions = set()
+        for q in questions:
+            dim = q.get("dimension") or q.get("domain")
+            if dim:
+                dimensions.add(dim)
+
+        logger.info(f"Questions dynamiques retournées | count={len(questions)} | dimensions={len(dimensions)}")
+
+        return {
+            "success": True,
+            "questions": questions,
+            "total_count": len(questions),
+            "dimensions_covered": len(dimensions),
+            "user_type": user_type,
+            "count_per_dimension": count_per_dimension
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Erreur récupération questions dynamiques: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erreur serveur interne"

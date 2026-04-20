@@ -5,6 +5,7 @@ PROA Routes - FastAPI endpoints for the complete PROA scoring system
 import logging
 from fastapi import APIRouter, HTTPException, status
 from datetime import datetime
+from typing import Any, Dict, List
 
 from models.proa import ProaComputeRequest, ProaComputeResponse, UserType
 from core.proa_orchestrator import ProaOrchestrator
@@ -391,7 +392,7 @@ async def diagnose_cache():
 async def get_recommendations_list(
     target_id: str = None,
     score_min: float = 0.0,
-    rank: int = None,
+    rank: str = None,
     user_type: str = None,
     search: str = None,
     limit: int = 25,
@@ -419,6 +420,7 @@ async def get_recommendations_list(
                 {
                     "id": str,
                     "user_id": str,
+                    "session_id": str,
                     "name": str,
                     "email": str,
                     "telephone": str,
@@ -430,7 +432,8 @@ async def get_recommendations_list(
                     "rank": int,
                     "confidence": float,
                     "reason": str,
-                    "created_at": str
+                    "created_at": str,
+                    "recommendations": list
                 }
             ],
             "stats": {
@@ -441,11 +444,27 @@ async def get_recommendations_list(
         }
     """
     try:
+        def extract_matched_fields(reason: str) -> str:
+            prefix = "Matched fields: "
+            if not reason:
+                return "N/A"
+            if reason.startswith(prefix):
+                fields = [field.strip() for field in reason[len(prefix):].split(",") if field.strip()]
+                return ", ".join(fields) if fields else "N/A"
+            return reason
+
+        def normalize_profile(profile_data: Any) -> Dict[str, Any]:
+            if isinstance(profile_data, list):
+                return profile_data[0] if profile_data else {}
+            return profile_data if isinstance(profile_data, dict) else {}
+
         # Build base query with proper joins to utilisateurs and profiles tables
         query = supabase.table("orientation_recommendations").select(
             """
             id,
             user_id,
+            profile_id,
+            session_id,
             score,
             rank,
             confidence,
@@ -470,28 +489,36 @@ async def get_recommendations_list(
         
         # Apply filters
         if target_id:
-            query = query.eq("target_id", target_id)
+            if target_id == "all-universites":
+                query = query.eq("target_type", "universite")
+            elif target_id == "all-centres":
+                query = query.eq("target_type", "centre")
+            else:
+                query = query.eq("target_id", target_id)
         
         if score_min > 0:
             query = query.gte("score", score_min)
         
         if rank:
-            rank_int = int(rank)
-            if rank == "top-10":
+            rank_value = str(rank).strip().lower()
+            if rank_value in {"top-10", "1"}:
                 query = query.lte("rank", 10)
-            elif rank == "top-50":
+            elif rank_value in {"top-50", "2"}:
                 query = query.lte("rank", 50)
-            elif rank == "top-100":
+            elif rank_value in {"top-100", "3"}:
                 query = query.lte("rank", 100)
             else:
-                query = query.lte("rank", rank_int)
+                try:
+                    query = query.lte("rank", int(rank_value))
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail="Invalid rank filter") from exc
         
         # Execute query without pagination first for total count
         response = query.execute()
         all_recommendations = response.data if response.data else []
         
-        # Post-process to add user data and apply remaining filters
-        processed_candidates = []
+        # Post-process to add user data and keep one row per table entry
+        processed_candidates: List[Dict[str, Any]] = []
         
         for rec in all_recommendations:
             try:
@@ -502,7 +529,7 @@ async def get_recommendations_list(
                     logger.warning(f"User not found for recommendation: {rec.get('user_id')}")
                     continue
                 
-                profile = utilisateur.get("profiles", {}) if isinstance(utilisateur, dict) else {}
+                profile = normalize_profile(utilisateur.get("profiles", {})) if isinstance(utilisateur, dict) else {}
                 
                 # Apply user_type filter
                 user_type_value = utilisateur.get("user_type", "").strip() if isinstance(utilisateur, dict) else ""
@@ -512,61 +539,69 @@ async def get_recommendations_list(
                 # Apply search filter
                 if search:
                     search_lower = search.lower()
-                    prenom = profile.get('prenom', '') if isinstance(profile, dict) else ''
-                    nom = profile.get('nom', '') if isinstance(profile, dict) else ''
+                    prenom = str(profile.get('prenom', '') or '') if isinstance(profile, dict) else ''
+                    nom = str(profile.get('nom', '') or '') if isinstance(profile, dict) else ''
                     name = f"{prenom} {nom}".lower()
-                    email = profile.get('email', '').lower() if isinstance(profile, dict) else ''
+                    email = str(profile.get('email', '') or '').lower() if isinstance(profile, dict) else ''
                     if search_lower not in name and search_lower not in email:
                         continue
                 
                 # Get filière name (optional)
-                filiere_name = "N/A"
-                try:
-                    # Try to get from profile or orientation data
-                    profile_response = supabase.table("orientation_profiles").select("*").eq("user_id", rec.get("user_id")).limit(1).execute()
-                    if profile_response.data:
-                        profile_data = profile_response.data[0]
-                        filiere_name = profile_data.get("matched_filieres", [None])[0] if profile_data.get("matched_filieres") else "N/A"
-                except:
-                    pass
-                
-                # Build candidate object
-                candidate = {
-                    "id": rec.get("id"),
-                    "user_id": rec.get("user_id"),
-                    "name": f"{profile.get('prenom', '')} {profile.get('nom', '')}".strip() if isinstance(profile, dict) else "N/A",
-                    "email": profile.get("email", "") if isinstance(profile, dict) else "",
-                    "telephone": profile.get("telephone", "") if isinstance(profile, dict) else "",
-                    "user_type": user_type_value,
-                    "filiere": filiere_name,
+                filiere_name = extract_matched_fields(rec.get("reason", ""))
+                session_id = rec.get("session_id")
+                candidate_name = f"{profile.get('prenom', '') or ''} {profile.get('nom', '') or ''}".strip() if isinstance(profile, dict) else "N/A"
+                recommendation = {
+                    "target_id": rec.get("target_id"),
                     "target_name": rec.get("target_name", ""),
                     "target_type": rec.get("target_type", ""),
                     "score": rec.get("score", 0.0),
                     "rank": rec.get("rank", 0),
+                    "confidence": rec.get("confidence", 0.0)
+                }
+
+                processed_candidates.append({
+                    "id": rec.get("id"),
+                    "recommendation_id": rec.get("id"),
+                    "user_id": rec.get("user_id"),
+                    "profile_id": rec.get("profile_id"),
+                    "session_id": session_id,
+                    "name": candidate_name or "N/A",
+                    "email": (profile.get("email", "") or "") if isinstance(profile, dict) else "",
+                    "telephone": (profile.get("telephone", "") or "") if isinstance(profile, dict) else "",
+                    "user_type": user_type_value or "N/A",
+                    "filiere": filiere_name,
+                    "score": rec.get("score", 0.0),
+                    "rank": rec.get("rank", 0),
                     "confidence": rec.get("confidence", 0.0),
                     "reason": rec.get("reason", ""),
-                    "created_at": rec.get("created_at", "")
-                }
-                
-                processed_candidates.append(candidate)
+                    "created_at": rec.get("created_at", ""),
+                    "target_id": recommendation["target_id"],
+                    "target_name": recommendation["target_name"],
+                    "target_type": recommendation["target_type"],
+                    "recommendations": [recommendation],
+                    "recommendation_count": 1,
+                    "universities": [recommendation] if recommendation["target_type"] == "universite" else [],
+                    "centres": [recommendation] if recommendation["target_type"] == "centre" else []
+                })
                 
             except Exception as e:
                 logger.error(f"Error processing recommendation {rec.get('id')}: {str(e)}")
                 continue
         
-        # Sort by score descending
-        processed_candidates.sort(key=lambda x: x["score"], reverse=True)
-        
-        # Calculate total
+        processed_candidates.sort(
+            key=lambda candidate: (
+                candidate.get("score") or 0.0,
+                candidate.get("confidence") or 0.0,
+                candidate.get("created_at") or ""
+            ),
+            reverse=True
+        )
+
         total = len(processed_candidates)
-        
-        # Apply pagination
         paginated = processed_candidates[offset:offset + limit]
         page = (offset // limit) + 1 if limit > 0 else 1
-        
-        # Calculate stats
         avg_score = sum(c["score"] for c in processed_candidates) / len(processed_candidates) if processed_candidates else 0.0
-        top_10_count = sum(1 for c in processed_candidates if c["rank"] <= 10)
+        top_10_count = sum(1 for c in processed_candidates if c["rank"] and c["rank"] <= 10)
         
         return {
             "total": total,
