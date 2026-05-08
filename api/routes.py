@@ -5,7 +5,8 @@ from typing import Dict, Any
 import os
 import json
 import uuid  # 🎯 Pour générer session_id
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
 from core.rule_engine import compute_profile
 from core.feature_engineering import build_features
@@ -32,6 +33,35 @@ from db.repository import (
 logger = logging.getLogger("orientation.api")
 
 router = APIRouter(prefix="/orientation", tags=["orientation"])
+
+# -------------------------------------------------
+# Simple in-memory cache for dynamic questions
+# -------------------------------------------------
+_dynamic_questions_cache = {}
+_CACHE_TTL_SECONDS = 300  # 5 minutes cache
+
+def _get_cache_key(user_type: str, count_per_dimension: int, difficulty: int) -> str:
+    return f"{user_type}_{count_per_dimension}_{difficulty}"
+
+def _is_cache_valid(cache_entry: Dict) -> bool:
+    return time.time() - cache_entry['timestamp'] < _CACHE_TTL_SECONDS
+
+def _get_cached_questions(cache_key: str) -> Dict:
+    if cache_key in _dynamic_questions_cache and _is_cache_valid(_dynamic_questions_cache[cache_key]):
+        logger.info(f"✅ Cache hit for dynamic questions: {cache_key}")
+        return _dynamic_questions_cache[cache_key]['data']
+    return None
+
+def _set_cached_questions(cache_key: str, data: Dict):
+    _dynamic_questions_cache[cache_key] = {
+        'data': data,
+        'timestamp': time.time()
+    }
+    logger.info(f"💾 Cached dynamic questions: {cache_key}")
+
+# -------------------------------------------------
+# Chargement de la configuration externe
+# -------------------------------------------------
 
 # -------------------------------------------------
 # Chargement de la configuration externe
@@ -401,6 +431,12 @@ def get_dynamic_questions_endpoint(
     try:
         logger.info(f"🎯 Questions dynamiques demandées | user_type={user_type} | count_per_dim={count_per_dimension} | difficulty={difficulty}")
 
+        # Check cache first
+        cache_key = _get_cache_key(user_type, count_per_dimension, difficulty)
+        cached_result = _get_cached_questions(cache_key)
+        if cached_result:
+            return cached_result
+
         # Récupérer les questions dynamiques
         questions = get_random_questions_per_session(
             user_type=user_type,
@@ -428,7 +464,7 @@ def get_dynamic_questions_endpoint(
 
         logger.info(f"Questions dynamiques retournées | count={len(questions)} | dimensions={len(dimensions)}")
 
-        return {
+        result = {
             "success": True,
             "questions": questions,
             "total_count": len(questions),
@@ -436,6 +472,11 @@ def get_dynamic_questions_endpoint(
             "user_type": user_type,
             "count_per_dimension": count_per_dimension
         }
+
+        # Cache the result
+        _set_cached_questions(cache_key, result)
+
+        return result
 
     except HTTPException:
         raise

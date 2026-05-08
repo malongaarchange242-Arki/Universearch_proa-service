@@ -572,6 +572,11 @@ def save_orientation_feedback(
 # -------------------------------------------------
 # Questions dynamiques / Non-répétitives
 # -------------------------------------------------
+# Cache for dimension mappings (they don't change often)
+_dimension_mappings_cache = None
+_dimension_mappings_cache_time = 0
+_DIMENSION_CACHE_TTL = 600  # 10 minutes
+
 def get_random_questions_per_session(
     user_type: str = "all",
     count_per_dimension: int = 2,
@@ -587,13 +592,26 @@ def get_random_questions_per_session(
 
         # Récupérer les vraies questions avec leurs dimensions depuis Supabase
         try:
-            # Récupérer les mappings question-dimension
-            result = supabase.table("orientation_quiz_question_dimensions").select("*").execute()
-            dimension_mappings, error = _unwrap_result(result)
+            import time
+            current_time = time.time()
 
-            if error:
-                logger.warning(f"Erreur récupération mappings dimensions: {error}")
-                return get_random_questions_simple(user_type=user_type, limit=15)
+            # Check cache for dimension mappings
+            global _dimension_mappings_cache, _dimension_mappings_cache_time
+            if _dimension_mappings_cache is None or (current_time - _dimension_mappings_cache_time) > _DIMENSION_CACHE_TTL:
+                logger.info("🔄 Refreshing dimension mappings cache")
+                # Récupérer les mappings question-dimension
+                result = supabase.table("orientation_quiz_question_dimensions").select("*").execute()
+                dimension_mappings, error = _unwrap_result(result)
+
+                if error:
+                    logger.warning(f"Erreur récupération mappings dimensions: {error}")
+                    return get_random_questions_simple(user_type=user_type, limit=15)
+
+                _dimension_mappings_cache = dimension_mappings
+                _dimension_mappings_cache_time = current_time
+            else:
+                logger.info("✅ Using cached dimension mappings")
+                dimension_mappings = _dimension_mappings_cache
 
             if not dimension_mappings:
                 logger.warning("Aucun mapping question-dimension trouvé")
