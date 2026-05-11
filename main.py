@@ -55,9 +55,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Autoriser les requêtes depuis le frontend (quiz.html)
 app.add_middleware(
     CORSMiddleware,
-    # During development allow all origins to avoid CORS issues from various frontend ports.
-    # In production restrict this to the known frontend origins.
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:5500",
+        "https://universearch.com",
+        "https://universearch-frontend.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
