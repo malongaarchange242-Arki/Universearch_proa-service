@@ -67,6 +67,13 @@ app.include_router(quiz_router)          # NEW: Quiz endpoints
 app.include_router(admin_router)         # NEW: Admin endpoints
 app.include_router(proa_router)          # PROA Service - Recommendations & Scoring
 
+@app.api_route("/", methods=["GET", "HEAD"])
+def root():
+    return {
+        "service": "PROA Service",
+        "status": "running"
+    }
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
