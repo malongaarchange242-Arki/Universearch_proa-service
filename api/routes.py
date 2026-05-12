@@ -495,7 +495,8 @@ def get_career_recommendations(payload: QuizSubmission):
 # -------------------------------------------------
 # Monitoring et diagnostique
 # -------------------------------------------------
-@router.get("/health", methods=["GET", "HEAD"], tags=["monitoring"])
+@router.head("/health", tags=["monitoring"])
+@router.get("/health", tags=["monitoring"])
 def health_check():
     """
     Vérifie la santé globale du système PROA.
