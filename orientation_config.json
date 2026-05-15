@@ -35,5 +35,245 @@
     "organization": ["q21"],
     "resilience": ["q12", "q16"],
     "negotiation": ["q20"]
+  },
+
+  "bac_series": {
+    "A": {
+      "description": "Lettres, langues, philosophie et sciences humaines",
+      "sector": "humanities",
+      "icon": "📚",
+      "color": "#f59e0b"
+    },
+    "C": {
+      "description": "Mathématiques et sciences physiques",
+      "sector": "science",
+      "icon": "🔬",
+      "color": "#06b6d4"
+    },
+    "D": {
+      "description": "Sciences naturelles et biologie",
+      "sector": "science",
+      "icon": "🧬",
+      "color": "#10b981"
+    },
+    "E": {
+      "description": "Mathématiques techniques et technologie",
+      "sector": "technical",
+      "icon": "⚡",
+      "color": "#f43f5e"
+    },
+    "F1": {
+      "description": "Construction mécanique",
+      "sector": "technical",
+      "icon": "🔧",
+      "color": "#8b5cf6"
+    },
+    "F2": {
+      "description": "Electronique",
+      "sector": "technical",
+      "icon": "🔌",
+      "color": "#8b5cf6"
+    },
+    "F3": {
+      "description": "Electrotechnique",
+      "sector": "technical",
+      "icon": "⚡",
+      "color": "#8b5cf6"
+    },
+    "F4": {
+      "description": "Génie civil et bâtiment",
+      "sector": "technical",
+      "icon": "🏗️",
+      "color": "#8b5cf6"
+    },
+    "H1": {
+      "description": "Informatique de gestion",
+      "sector": "informatics",
+      "icon": "💻",
+      "color": "#7c3aed"
+    },
+    "H2": {
+      "description": "Communication administrative",
+      "sector": "business",
+      "icon": "📋",
+      "color": "#7c3aed"
+    },
+    "H3": {
+      "description": "Action commerciale",
+      "sector": "business",
+      "icon": "🤝",
+      "color": "#7c3aed"
+    },
+    "H4": {
+      "description": "Gestion logistique",
+      "sector": "business",
+      "icon": "🚚",
+      "color": "#7c3aed"
+    },
+    "H5": {
+      "description": "Techniques administratives",
+      "sector": "business",
+      "icon": "📊",
+      "color": "#7c3aed"
+    },
+    "G1": {
+      "description": "Comptabilité",
+      "sector": "business",
+      "icon": "🧮",
+      "color": "#10b981"
+    },
+    "G2": {
+      "description": "Gestion commerciale",
+      "sector": "business",
+      "icon": "💼",
+      "color": "#10b981"
+    },
+    "G3": {
+      "description": "Gestion des entreprises",
+      "sector": "business",
+      "icon": "🏢",
+      "color": "#10b981"
+    },
+    "BG": {
+      "description": "Banque et gestion",
+      "sector": "business",
+      "icon": "🏦",
+      "color": "#10b981"
+    },
+    "R1": {
+      "description": "Production végétale",
+      "sector": "agriculture",
+      "icon": "🌱",
+      "color": "#22c55e"
+    },
+    "R2": {
+      "description": "Production animale",
+      "sector": "agriculture",
+      "icon": "🐄",
+      "color": "#22c55e"
+    },
+    "R3": {
+      "description": "Santé animale",
+      "sector": "agriculture",
+      "icon": "🐾",
+      "color": "#22c55e"
+    },
+    "R4": {
+      "description": "Machiniste agricole",
+      "sector": "agriculture",
+      "icon": "🚜",
+      "color": "#22c55e"
+    },
+    "R5": {
+      "description": "Économie et gestion coopératives",
+      "sector": "agriculture",
+      "icon": "🌾",
+      "color": "#22c55e"
+    },
+    "R6": {
+      "description": "Génie rural",
+      "sector": "agriculture",
+      "icon": "🏞️",
+      "color": "#22c55e"
+    },
+    "P2": {
+      "description": "BTP et travaux publics",
+      "sector": "vocational",
+      "icon": "👷",
+      "color": "#64748b"
+    },
+    "P6": {
+      "description": "Techniques industrielles",
+      "sector": "vocational",
+      "icon": "🏭",
+      "color": "#64748b"
+    },
+    "P7": {
+      "description": "Métiers pratiques et professionnels",
+      "sector": "vocational",
+      "icon": "🛠️",
+      "color": "#64748b"
+    }
+  },
+
+  "bac_sectors": {
+    "humanities": {
+      "label": "Lettres & Sciences Humaines",
+      "icon": "📚",
+      "allowed_clusters": ["droit", "social", "arts_design", "business"],
+      "allowed_domains": ["communication", "leadership", "creativity", "ethics"],
+      "forbidden_clusters": ["informatique", "engineering", "sciences"],
+      "forbidden_domains": ["computer_science", "technical"],
+      "cluster_bonus": 0.15,
+      "cluster_malus": -0.20
+    },
+    "science": {
+      "label": "Sciences",
+      "icon": "🔬",
+      "allowed_clusters": ["sciences", "sante", "informatique", "engineering", "geoscience", "agriculture", "business"],
+      "allowed_domains": ["analysis", "logic", "computer_science", "technical"],
+      "forbidden_clusters": ["droit", "arts_design"],
+      "forbidden_domains": [],
+      "cluster_bonus": 0.10,
+      "cluster_malus": -0.15
+    },
+    "technical": {
+      "label": "Technique & Industrie",
+      "icon": "⚡",
+      "allowed_clusters": ["engineering", "informatique", "sciences", "geoscience", "agriculture"],
+      "allowed_domains": ["technical", "engineering", "analysis"],
+      "forbidden_clusters": ["droit", "social", "arts_design"],
+      "forbidden_domains": ["communication", "creativity"],
+      "cluster_bonus": 0.15,
+      "cluster_malus": -0.25
+    },
+    "informatics": {
+      "label": "Informatique",
+      "icon": "💻",
+      "allowed_clusters": ["informatique", "engineering", "business"],
+      "allowed_domains": ["computer_science", "logic", "technical", "analysis"],
+      "forbidden_clusters": ["droit", "sante", "agriculture"],
+      "forbidden_domains": [],
+      "cluster_bonus": 0.20,
+      "cluster_malus": -0.30
+    },
+    "business": {
+      "label": "Gestion & Commerce",
+      "icon": "💼",
+      "allowed_clusters": ["business", "social", "droit"],
+      "allowed_domains": ["business", "management", "finance", "organization", "communication"],
+      "forbidden_clusters": ["informatique", "engineering", "sciences", "sante", "agriculture"],
+      "forbidden_domains": ["computer_science", "technical"],
+      "cluster_bonus": 0.15,
+      "cluster_malus": -0.25
+    },
+    "agriculture": {
+      "label": "Agriculture & Élevage",
+      "icon": "🌾",
+      "allowed_clusters": ["agriculture", "geoscience", "sciences"],
+      "allowed_domains": ["analysis", "technical"],
+      "forbidden_clusters": ["informatique", "droit", "arts_design"],
+      "forbidden_domains": ["computer_science", "creativity"],
+      "cluster_bonus": 0.20,
+      "cluster_malus": -0.30
+    },
+    "vocational": {
+      "label": "Professionnel",
+      "icon": "🛠️",
+      "allowed_clusters": ["engineering", "geoscience", "agriculture"],
+      "allowed_domains": ["technical"],
+      "forbidden_clusters": ["droit", "social", "sante"],
+      "forbidden_domains": ["communication", "leadership", "creativity"],
+      "cluster_bonus": 0.15,
+      "cluster_malus": -0.20
+    }
+  },
+
+  "bac_compatibility_rules": {
+    "strict_forbidden": false,
+    "apply_penalty_instead_of_exclusion": true,
+    "penalty_weight": 0.30,
+    "bonus_weight": 0.15,
+    "minimum_score_threshold": 0.10
   }
 }

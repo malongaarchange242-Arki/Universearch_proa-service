@@ -17,6 +17,7 @@ from core.domain_scoring import DomainScoringEngine
 from core.filiere_scoring import FiliereEngineScore
 from core.pora_scoring import PoraScoring
 from core.recommendation_engine import RecommendationEngine
+from core.rule_engine import _ENGINE as rule_engine  # ← AJOUTÉ
 from core.utils import normalize_responses
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,9 @@ class ProaOrchestrator:
     Pipeline:
     1. Feature Engineering: responses → normalized features
     2. Domain Scoring: features → domain scores
+    2.5. Bac Compatibility: validate bac → sector rules  ← AJOUTÉ
     3. Filière Scoring: domains → filière compatibility scores
+    3.5. Bac Filtering: adjust filière scores by bac  ← AJOUTÉ
     4. PORA Scoring: filière scores → université/centre rankings
     5. Recommendations: Generate personalized recommendations
     """
@@ -42,6 +45,7 @@ class ProaOrchestrator:
         self.filiere_scorer = FiliereEngineScore(supabase)
         self.pora_scorer = PoraScoring(supabase)
         self.recommendation_engine = RecommendationEngine(supabase)
+        self.rule_engine = rule_engine  # ← AJOUTÉ (singleton)
         
         # Statistics
         self.stats = None
@@ -63,6 +67,11 @@ class ProaOrchestrator:
         logger.info(f"🚀 Starting PROA computation for user {request.user_id}")
         logger.info(f"   User type: {request.user_type}")
         logger.info(f"   Responses: {len(request.responses)} questions")
+        
+        # Récupérer le bac_code s'il existe (AJOUTÉ)
+        bac_code = getattr(request, 'bac_code', None) or getattr(request, 'bac_type', None)
+        if bac_code:
+            logger.info(f"   Bac: {bac_code}")
         
         start_time = datetime.utcnow()
         
@@ -103,7 +112,7 @@ class ProaOrchestrator:
                 features[feature_name] = FeatureScore(
                     name=feature_name,
                     score=float(score),
-                    weight=1.0,  # Will be refined per domain
+                    weight=1.0,
                     contribution=float(score),
                     question_count=0
                 )
@@ -126,6 +135,31 @@ class ProaOrchestrator:
             self.stats.domain_coverage = domain_stats.get("avg_confidence", 0.0)
             
             # ===================================================================
+            # STEP 2.5: BAC COMPATIBILITY (AJOUTÉ)
+            # ===================================================================
+            logger.info("\n🎓 STEP 2.5: Bac Compatibility Check")
+            logger.info("=" * 60)
+            
+            bac_info = None
+            bac_sector = None
+            bac_valid = False
+            
+            if bac_code:
+                bac_valid = self.rule_engine.validate_bac_code(bac_code)
+                if bac_valid:
+                    bac_info = self.rule_engine.get_bac_info(bac_code)
+                    bac_sector = self.rule_engine.get_bac_sector(bac_code)
+                    logger.info(f"✅ Bac '{bac_code}' validé")
+                    logger.info(f"   Description: {bac_info.get('description', 'N/A')}")
+                    logger.info(f"   Secteur: {bac_sector}")
+                    logger.info(f"   Icône: {bac_info.get('icon', 'N/A')}")
+                else:
+                    logger.warning(f"⚠️ Code bac invalide: '{bac_code}' — ignoré")
+                    bac_code = None
+            else:
+                logger.info("ℹ️ Aucun bac fourni — mode neutre (toutes filières autorisées)")
+            
+            # ===================================================================
             # STEP 3: FILIÈRE SCORING
             # ===================================================================
             logger.info("\n🎓 STEP 3: Filière Scoring")
@@ -139,6 +173,89 @@ class ProaOrchestrator:
             self.stats.filiere_coverage = filiere_stats.get("filieres_scored", 0) / max(1, filiere_stats.get("total_filieres", 1))
             
             # ===================================================================
+            # STEP 3.5: BAC FILTERING (AJOUTÉ)
+            # ===================================================================
+            if bac_code and bac_valid:
+                logger.info("\n🔍 STEP 3.5: Bac Filtering — Ajustement des scores")
+                logger.info("=" * 60)
+                
+                # Convertir les scores filières en liste de dicts pour le filtrage
+                filiere_dicts = []
+                for fs in filiere_scores:
+                    filiere_dicts.append({
+                        "filiere_name": fs.filiere_name if hasattr(fs, 'filiere_name') else str(fs),
+                        "score": fs.score if hasattr(fs, 'score') else 0.5,
+                        "cluster": fs.cluster if hasattr(fs, 'cluster') else "unknown",
+                        "domains": fs.domains if hasattr(fs, 'domains') else [],
+                        "_original_object": fs  # Garder une référence à l'objet original
+                    })
+                
+                # Appliquer le filtrage bac
+                filtered_filieres = self.rule_engine.filter_fields_by_bac(
+                    bac_code, filiere_dicts
+                )
+                
+                # Logger les changements
+                nb_penalized = 0
+                nb_excluded = 0
+                nb_boosted = 0
+                
+                for ff in filtered_filieres:
+                    original_score = ff.get("original_score", ff.get("score", 0))
+                    adjusted_score = ff.get("bac_adjusted_score", ff.get("score", 0))
+                    bac_compat = ff.get("bac_compatibility", 0.5)
+                    
+                    if bac_compat == 0.0:
+                        nb_excluded += 1
+                        logger.debug(
+                            f"   ❌ {ff['filiere_name']}: exclu (compatibilité 0.0)"
+                        )
+                    elif adjusted_score < original_score - 0.05:
+                        nb_penalized += 1
+                        logger.debug(
+                            f"   ⚠️ {ff['filiere_name']}: {original_score:.3f} → {adjusted_score:.3f} "
+                            f"(compatibilité bac: {bac_compat:.2f})"
+                        )
+                    elif adjusted_score > original_score + 0.05:
+                        nb_boosted += 1
+                        logger.debug(
+                            f"   ✅ {ff['filiere_name']}: {original_score:.3f} → {adjusted_score:.3f} "
+                            f"(bonus bac: +{adjusted_score - original_score:.3f})"
+                        )
+                
+                logger.info(f"✅ Filtrage bac terminé:")
+                logger.info(f"   Filières boostées: {nb_boosted}")
+                logger.info(f"   Filières pénalisées: {nb_penalized}")
+                logger.info(f"   Filières exclues: {nb_excluded}")
+                logger.info(f"   Filières retenues: {len(filtered_filieres)}")
+                
+                # Mettre à jour les scores dans les objets originaux si possible
+                for ff in filtered_filieres:
+                    original_obj = ff.get("_original_object")
+                    if original_obj and hasattr(original_obj, 'score'):
+                        original_obj.score = ff["score"]
+                        if not hasattr(original_obj, 'bac_compatibility'):
+                            # Ajouter dynamiquement l'info bac
+                            original_obj.bac_compatibility = ff.get("bac_compatibility", 0.5)
+                            original_obj.original_score = ff.get("original_score", ff["score"])
+                
+                # Re-trier les filière_scores par score ajusté
+                filiere_scores.sort(key=lambda fs: fs.score if hasattr(fs, 'score') else 0, reverse=True)
+                
+                # Ajouter les stats bac
+                filiere_stats["bac_filtering"] = {
+                    "bac_code": bac_code,
+                    "bac_sector": bac_sector,
+                    "bac_description": bac_info.get("description", "") if bac_info else "",
+                    "boosted": nb_boosted,
+                    "penalized": nb_penalized,
+                    "excluded": nb_excluded,
+                    "retained": len(filtered_filieres)
+                }
+            else:
+                logger.info("\n🔍 STEP 3.5: Bac Filtering — SKIPPED (pas de bac valide)")
+            
+            # ===================================================================
             # STEP 4: PORA SCORING (University + Centre)
             # ===================================================================
             logger.info("\n🎯 STEP 4: PORA Scoring (Universités & Centres)")
@@ -146,7 +263,7 @@ class ProaOrchestrator:
             
             universite_scores, uni_stats = self.pora_scorer.compute_universite_scores(
                 filiere_scores,
-                top_n=50  # Keep more for recommendations
+                top_n=50
             )
             
             centre_scores, centre_stats = self.pora_scorer.compute_centre_scores(
@@ -208,7 +325,7 @@ class ProaOrchestrator:
                 timestamp=datetime.utcnow(),
                 features=features,
                 domain_scores=domain_scores,
-                filiere_scores=filiere_scores[:10],  # Top 10 for response
+                filiere_scores=filiere_scores[:10],
                 universites=universite_scores[:7],
                 centres=centre_scores[:7],
                 recommendations={
@@ -228,7 +345,14 @@ class ProaOrchestrator:
                     "domain_stats": domain_stats,
                     "filiere_stats": filiere_stats,
                     "universite_stats": uni_stats,
-                    "centre_stats": centre_stats
+                    "centre_stats": centre_stats,
+                    "bac_info": {  # ← AJOUTÉ
+                        "bac_code": bac_code,
+                        "bac_valid": bac_valid,
+                        "bac_sector": bac_sector,
+                        "bac_description": bac_info.get("description", "") if bac_info else None,
+                        "bac_icon": bac_info.get("icon", "") if bac_info else None
+                    } if bac_code else None
                 }
             )
             
@@ -239,6 +363,8 @@ class ProaOrchestrator:
             logger.info("✅ PROA COMPUTATION COMPLETE")
             logger.info("=" * 60)
             logger.info(f"User: {request.user_id} ({request.user_type.value})")
+            if bac_code:
+                logger.info(f"Bac: {bac_code} ({bac_sector or 'inconnu'})")
             logger.info(f"Coverage: {response.coverage * 100:.1f}% ({valid_count}/{total_q} questions)")
             logger.info(f"Confidence: {response.confidence * 100:.1f}%")
             logger.info(f"Time: {response.computation_time_ms:.2f}ms")
@@ -297,6 +423,15 @@ class ProaOrchestrator:
         
         if invalid_responses:
             validation["errors"].extend(invalid_responses)
+        
+        # Validate bac_code if provided (AJOUTÉ)
+        bac_code = getattr(request, 'bac_code', None) or getattr(request, 'bac_type', None)
+        if bac_code:
+            if not self.rule_engine.validate_bac_code(bac_code):
+                validation["warnings"].append(
+                    f"Code bac inconnu: '{bac_code}'. "
+                    f"Codes valides: {', '.join(sorted(self.rule_engine._valid_bac_codes))}"
+                )
         
         validation["valid"] = len(validation["errors"]) == 0
         

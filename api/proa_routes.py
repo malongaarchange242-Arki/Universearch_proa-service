@@ -43,9 +43,11 @@ async def info():
             "Domain scoring (with caching)",
             "Filière matching (with confidence)",
             "PORA scoring (popularity + engagement + orientation)",
-            "Personalized recommendations (filieres + universites + centres)"
+            "Personalized recommendations (filieres + universites + centres)",
+            "Bac compatibility filtering (Congolese bac system)"
         ],
         "user_types": ["bachelier", "etudiant", "parent"],
+        "bac_series_supported": True,
         "optimization": "1 query per domain (nested select), 1h cache TTL",
         "performance": "~100-200ms per computation"
     }
@@ -63,7 +65,9 @@ async def compute_proa(request: ProaComputeRequest):
     Pipeline:
     1. Feature Engineering (normalized)
     2. Domain Scoring (DB-driven)
+    2.5. Bac Compatibility Check (Congolese bac system)
     3. Filière Scoring (domain match)
+    3.5. Bac Filtering (score adjustment)
     4. PORA Scoring (universities + centres)
     5. Recommendations (personalized)
     
@@ -73,6 +77,8 @@ async def compute_proa(request: ProaComputeRequest):
             - user_type: "bachelier" | "etudiant" | "parent"
             - quiz_version: str (e.g., "1.0")
             - orientation_type: "field" | "career" | "general"
+            - bac_code: str (optional) — Code bac congolais
+              Valides: A, C, D, E, F1-F4, G1-G3, BG, H1-H5, R1-R6, P2, P6, P7
             - responses: {q1: 3, q2: 4, ...} (Likert 1-4)
     
     Returns:
@@ -85,6 +91,7 @@ async def compute_proa(request: ProaComputeRequest):
             "user_type": "bachelier",
             "quiz_version": "1.0",
             "orientation_type": "field",
+            "bac_code": "D",
             "responses": {
                 "q1": 3, "q2": 4, "q3": 2, "q4": 3, "q5": 4,
                 "q6": 2, "q7": 3, "q8": 4, "q9": 2, "q10": 3,
@@ -104,64 +111,18 @@ async def compute_proa(request: ProaComputeRequest):
                 "domain_technical": {"score": 0.75, ...}
             },
             
-            "domain_scores": [
-                {
-                    "domain_id": "uuid",
-                    "domain_name": "logic",
-                    "score": 0.62,
-                    "confidence": 0.95
-                }
-            ],
+            "domain_scores": [...],
+            "filiere_scores": [...],
+            "universites": [...],
+            "centres": [...],
+            "recommendations": {...},
             
-            "filiere_scores": [
-                {
-                    "filiere_id": "uuid",
-                    "filiere_name": "Informatique",
-                    "field": "STEM",
-                    "score": 0.85,
-                    "compatibility_level": "excellent",
-                    "top_domains": ["logic", "technical"]
-                }
-            ],
-            
-            "universites": [
-                {
-                    "universite_id": "uuid",
-                    "universite_name": "Université de Kinshasa",
-                    "pora_score": 0.78,
-                    "ranking": 1
-                }
-            ],
-            
-            "centres": [
-                {
-                    "centre_id": "uuid",
-                    "centre_name": "Centre STEM Kinshasa",
-                    "pora_score": 0.82,
-                    "ranking": 1
-                }
-            ],
-            
-            "recommendations": {
-                "filieres": [
-                    {
-                        "id": "uuid",
-                        "name": "Informatique",
-                        "type": "filieres",
-                        "score": 0.85,
-                        "reason": "Excellent match - your top domains strongly align"
-                    }
-                ],
-                "universites": [
-                    {
-                        "id": "uuid",
-                        "name": "Université de Kinshasa",
-                        "type": "universites",
-                        "score": 0.79,
-                        "reason": "Offers your top recommended filieres"
-                    }
-                ],
-                "centres": [...]
+            "bac_info": {
+                "bac_code": "D",
+                "bac_valid": true,
+                "bac_sector": "science",
+                "bac_description": "Sciences naturelles et biologie",
+                "bac_icon": "🧬"
             },
             
             "coverage": 0.95,
@@ -183,7 +144,7 @@ async def compute_proa(request: ProaComputeRequest):
         422: Validation error (bad user_type, etc)
         500: Server error (DB connection, etc)
     """
-    logger.info(f"📥 Received PROA compute request for {request.user_id}")
+    logger.info(f"📥 Received PROA compute request for {request.user_id} | bac={request.bac_code or 'N/A'}")
     
     try:
         # Validate request
@@ -230,10 +191,12 @@ async def compute_proa(request: ProaComputeRequest):
                     "filiere_id": f.filiere_id,
                     "filiere_name": f.filiere_name,
                     "field": f.field,
+                    "cluster": f.cluster,
                     "duration_years": f.duration_years,
                     "score": f.score,
                     "compatibility_level": f.compatibility_level,
                     "top_domains": f.top_domains,
+                    "domains_list": f.domains_list,
                     "domain_matches": [
                         {
                             "domain_id": match.domain_id,
@@ -311,6 +274,7 @@ async def compute_proa(request: ProaComputeRequest):
             "computation_time_ms": response.computation_time_ms,
             "total_questions": response.total_questions,
             "matched_questions": response.matched_questions,
+            "bac_info": response.bac_info,
             "metrics": response.metrics
         }
         
@@ -325,6 +289,186 @@ async def compute_proa(request: ProaComputeRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Computation failed: {str(e)}"
         )
+
+
+# ============================================================================
+# BAC ENDPOINTS (NEW)
+# ============================================================================
+
+@router.get("/bac/series")
+async def get_bac_series():
+    """
+    Retourne la liste complète des séries de bac congolaises.
+    
+    Returns:
+        {
+            "bac_series": {...},
+            "bac_sectors": {...},
+            "total": 27
+        }
+    """
+    from core.rule_engine import _ENGINE, BAC_SERIES, BAC_SECTORS
+    
+    return {
+        "bac_series": {
+            code: {
+                "description": info.get("description"),
+                "sector": info.get("sector"),
+                "icon": info.get("icon"),
+                "color": info.get("color")
+            }
+            for code, info in BAC_SERIES.items()
+        },
+        "bac_sectors": {
+            sector: {
+                "label": rules.get("label"),
+                "icon": rules.get("icon"),
+                "allowed_clusters": rules.get("allowed_clusters"),
+                "forbidden_clusters": rules.get("forbidden_clusters")
+            }
+            for sector, rules in BAC_SECTORS.items()
+        },
+        "total_series": len(BAC_SERIES),
+        "total_sectors": len(BAC_SECTORS)
+    }
+
+
+@router.get("/bac/validate/{bac_code}")
+async def validate_bac_code(bac_code: str):
+    """
+    Valide un code bac congolais.
+    
+    Args:
+        bac_code: Le code à valider (ex: "D", "H1", "R3")
+    
+    Returns:
+        {
+            "valid": true/false,
+            "bac_code": "D",
+            "info": {...}  # si valide
+        }
+    """
+    from core.rule_engine import _ENGINE
+    
+    is_valid = _ENGINE.validate_bac_code(bac_code)
+    info = _ENGINE.get_bac_info(bac_code) if is_valid else None
+    
+    return {
+        "valid": is_valid,
+        "bac_code": bac_code.upper().strip(),
+        "info": {
+            "description": info.get("description"),
+            "sector": info.get("sector"),
+            "icon": info.get("icon"),
+            "color": info.get("color")
+        } if info else None
+    }
+
+
+@router.get("/bac/compatibility/{bac_code}")
+async def check_bac_compatibility(
+    bac_code: str,
+    field_cluster: str = None,
+    field_domain: str = None
+):
+    """
+    Vérifie la compatibilité entre un bac et un cluster/domaine.
+    
+    Args:
+        bac_code: Code du bac (ex: "D")
+        field_cluster: Cluster métier à vérifier (ex: "business", "droit")
+        field_domain: Domaine à vérifier (ex: "computer_science")
+    
+    Returns:
+        {
+            "bac_code": "D",
+            "bac_sector": "science",
+            "compatibility": {
+                "cluster": {
+                    "name": "business",
+                    "allowed": true,
+                    "score_modifier": 0.10
+                }
+            }
+        }
+    """
+    from core.rule_engine import _ENGINE
+    
+    if not _ENGINE.validate_bac_code(bac_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Code bac invalide: '{bac_code}'. Codes valides: {', '.join(sorted(_ENGINE._valid_bac_codes))}"
+        )
+    
+    result = {
+        "bac_code": bac_code.upper().strip(),
+        "bac_sector": _ENGINE.get_bac_sector(bac_code),
+        "compatibility": {}
+    }
+    
+    if field_cluster:
+        allowed, modifier = _ENGINE.is_cluster_allowed_for_bac(bac_code, field_cluster)
+        result["compatibility"]["cluster"] = {
+            "name": field_cluster,
+            "allowed": allowed,
+            "score_modifier": round(modifier, 4)
+        }
+    
+    if field_domain:
+        allowed, modifier = _ENGINE.is_domain_allowed_for_bac(bac_code, field_domain)
+        result["compatibility"]["domain"] = {
+            "name": field_domain,
+            "allowed": allowed,
+            "score_modifier": round(modifier, 4)
+        }
+    
+    if field_cluster:
+        result["compatibility"]["overall_score"] = round(
+            _ENGINE.compute_bac_compatibility_score(
+                bac_code, field_cluster,
+                [field_domain] if field_domain else None
+            ), 4
+        )
+    
+    return result
+
+
+@router.get("/bac/recommend/{field_cluster}")
+async def recommend_bac_for_field(field_cluster: str):
+    """
+    Suggère les bacs les plus adaptés pour une filière donnée (orientation inversée).
+    
+    Args:
+        field_cluster: Le cluster métier (ex: "informatique", "business", "sante")
+    
+    Returns:
+        {
+            "field_cluster": "informatique",
+            "recommended_bacs": ["C", "E", "H1", "H2"]
+        }
+    """
+    from core.rule_engine import _ENGINE
+    
+    recommended = _ENGINE.get_recommended_bac_for_field(field_cluster)
+    
+    # Enrichir avec les infos
+    detailed = []
+    for bac_code in recommended:
+        info = _ENGINE.get_bac_info(bac_code)
+        if info:
+            detailed.append({
+                "code": bac_code,
+                "description": info.get("description"),
+                "sector": info.get("sector"),
+                "icon": info.get("icon")
+            })
+    
+    return {
+        "field_cluster": field_cluster,
+        "recommended_bacs": recommended,
+        "detailed": detailed,
+        "total": len(recommended)
+    }
 
 
 # ============================================================================
@@ -416,31 +560,8 @@ async def get_recommendations_list(
             "count": int,
             "page": int,
             "limit": int,
-            "candidates": [
-                {
-                    "id": str,
-                    "user_id": str,
-                    "session_id": str,
-                    "name": str,
-                    "email": str,
-                    "telephone": str,
-                    "user_type": str,
-                    "filiere": str,
-                    "target_name": str,
-                    "target_type": str,
-                    "score": float,
-                    "rank": int,
-                    "confidence": float,
-                    "reason": str,
-                    "created_at": str,
-                    "recommendations": list
-                }
-            ],
-            "stats": {
-                "avg_score": float,
-                "top_10_count": int,
-                "selected_count": int
-            }
+            "candidates": [...],
+            "stats": {...}
         }
     """
     try:
@@ -613,7 +734,7 @@ async def get_recommendations_list(
             "stats": {
                 "avg_score": round(avg_score, 4),
                 "top_10_count": top_10_count,
-                "selected_count": 0  # To be computed on frontend
+                "selected_count": 0
             },
             "timestamp": datetime.utcnow().isoformat()
         }
@@ -636,8 +757,8 @@ async def get_recommendations_stats(target_id: str = None):
             "total_recommendations": int,
             "unique_candidates": int,
             "avg_score": float,
-            "score_distribution": {"[0-0.25]": int, "[0.25-0.5]": int, ...},
-            "by_target_type": {"universite": int, "centre": int}
+            "score_distribution": {...},
+            "by_target_type": {...}
         }
     """
     try:
@@ -681,3 +802,84 @@ async def get_recommendations_stats(target_id: str = None):
     except Exception as e:
         logger.exception(f"Error calculating stats: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to calculate statistics")
+    
+
+# Ajouter dans api/proa_routes.py
+
+from core.proa_scoring_v2 import ProaScoringV2
+
+@router.post("/compute_v2")
+async def compute_orientation_v2(request: Dict[str, Any]):
+    """
+    Version améliorée du calcul d'orientation.
+    Utilise le nouveau scoring vectoriel dimensionnel.
+    
+    Request:
+        {
+            "user_id": "user123",
+            "user_type": "bachelier",
+            "profile": {
+                "domains": {"computer_science": 0.8, "technical": 0.7},
+                "skills": {"python": 0.9, "data_analysis": 0.8},
+                "context": {"bac_type": "C"}
+            }
+        }
+    """
+    try:
+        user_id = request.get("user_id")
+        user_type = request.get("user_type", "bachelier")
+        profile = request.get("profile", {})
+        
+        if not user_id:
+            raise HTTPException(400, "user_id requis")
+        
+        if not profile:
+            raise HTTPException(400, "profile requis (domains + skills)")
+        
+        # Utiliser le nouveau scorer V2
+        scorer = ProaScoringV2(get_supabase_client(), use_hybrid=True)
+        
+        # Calculer la réponse complète
+        response = scorer.compute_complete_response(
+            user_id=user_id,
+            profile=profile,
+            user_type=user_type
+        )
+        
+        # Formater pour l'API
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "scoring_method": response.scoring_method,
+            "recommendations": {
+                "filieres": [
+                    {
+                        "name": f.filiere_name,
+                        "score": f.score,
+                        "compatibility": f.compatibility_level,
+                        "cluster": f.cluster
+                    }
+                    for f in response.filiere_scores[:5]
+                ],
+                "universites": [
+                    {
+                        "name": u.universite_name,
+                        "pora_score": u.pora_score,
+                        "match_score": u.filiere_match
+                    }
+                    for u in response.universites[:5]
+                ]
+            },
+            "metadata": {
+                "confidence": response.confidence,
+                "computation_time_ms": response.computation_time_ms,
+                "bac_info": response.bac_info,
+                "insight": response.metrics.get("filiere_scoring", {}).get("insight")
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Erreur compute_v2: {e}")
+        raise HTTPException(500, f"Erreur interne: {str(e)}")

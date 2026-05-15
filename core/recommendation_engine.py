@@ -1,75 +1,99 @@
 """
 Recommendation Engine - Generate personalized recommendations based on computed scores
+Version 2.0 - Améliorée avec scoring hybride et insights personnalisés
 Covers filieres, universites, centres, and cross-recommendations
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
+from dataclasses import dataclass, field
 from supabase import Client
 
 from models.proa import (
     Recommendation, RecommendationType, FiliereScore, 
-    UniversiteScore, CentreScore
+    UniversiteScore, CentreScore, ProaComputeResponse
 )
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class RecommendationContext:
+    """Contexte de recommandation enrichi"""
+    user_id: str
+    user_type: str
+    bac_type: Optional[str] = None
+    dominant_cluster: Optional[str] = None
+    confidence: float = 0.0
+    computation_time_ms: float = 0.0
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
 class RecommendationEngine:
     """
-    Generate personalized recommendations from computed scores
+    Moteur de recommandations personnalisées V2
     
-    Strategies:
-    1. Filière recommendations: Top N by score
-    2. Université recommendations: Top N by PORA score, filtered by offered filieres
-    3. Centre recommendations: Top N by PORA score
-    4. Cross recommendations: Using formation_recommandations_cross table
+    Améliorations:
+    - Scoring hybride (vectoriel + règles + intérêts)
+    - Insights personnalisés par utilisateur
+    - Cache intelligent
+    - Diversité des recommandations
+    - Fallback robuste
     """
     
-    def __init__(self, supabase: Client):
+    def __init__(self, supabase: Client, use_cache: bool = True):
         self.supabase = supabase
+        self.use_cache = use_cache
+        self._cache: Dict[str, List[Recommendation]] = {}
+        
+        logger.info(f"RecommendationEngine V2 initialisé (cache={use_cache})")
     
     # =========================================================================
-    # FILIÈRE RECOMMENDATIONS
+    # FILIÈRE RECOMMENDATIONS (AMÉLIORÉES)
     # =========================================================================
     
     def recommend_filieres(
         self,
         filiere_scores: List[FiliereScore],
         top_n: int = 5,
-        min_score: float = 0.3
+        min_score: float = 0.3,
+        context: Optional[RecommendationContext] = None,
+        ensure_diversity: bool = True
     ) -> List[Recommendation]:
         """
-        Recommend filieres based on student's domain matches
+        Recommend filieres with enhanced reasoning and diversity
         
-        Filters:
-        - Top N by score
-        - Minimum compatibility score
+        Args:
+            filiere_scores: Liste des scores calculés
+            top_n: Nombre max de recommandations
+            min_score: Score minimum (0-1)
+            context: Contexte utilisateur pour personnalisation
+            ensure_diversity: Éviter la redondance de clusters
         
         Returns:
-            List[Recommendation] with metadata
+            Liste enrichie de recommandations
         """
-        logger.info(f"🎓 Generating filière recommendations (top {top_n})")
+        logger.info(f"🎓 Generating filière recommendations (top {top_n}, min_score={min_score})")
         
-        # Filter by min score
+        # 1. Filter by min score
         candidates = [f for f in filiere_scores if f.score >= min_score]
         logger.info(f"   {len(candidates)} filieres meet min score {min_score}")
         
-        # Take top N
-        top_filieres = candidates[:top_n]
+        # 2. Apply diversity if requested
+        if ensure_diversity and len(candidates) > top_n:
+            candidates = self._apply_diversity_filter(candidates, top_n)
+        else:
+            candidates = candidates[:top_n]
         
+        # 3. Build recommendations with enriched reasons
         recommendations = []
-        for rank, filiere in enumerate(top_filieres, 1):
-            # Determine reason based on compatibility
-            if filiere.compatibility_level == "excellent":
-                reason = f"Excellent match - your top domains {filiere.top_domains} strongly align"
-            elif filiere.compatibility_level == "good":
-                reason = f"Good match - domains {filiere.top_domains} are well-aligned"
-            elif filiere.compatibility_level == "fair":
-                reason = f"Fair match - some domains ({filiere.top_domains[0]} especially) match well"
-            else:
-                reason = f"Potential match - {filiere.field} field worth exploring"
+        for rank, filiere in enumerate(candidates, 1):
+            # Generate personalized reason
+            reason = self._generate_filiere_reason(filiere, context, rank)
+            
+            # Calculate confidence score
+            confidence = self._calculate_filiere_confidence(filiere, context)
             
             rec = Recommendation(
                 id=filiere.filiere_id,
@@ -79,72 +103,175 @@ class RecommendationEngine:
                 reason=reason,
                 metadata={
                     "field": filiere.field,
+                    "cluster": filiere.cluster,
                     "duration_years": filiere.duration_years,
                     "compatibility": filiere.compatibility_level,
                     "rank": rank,
-                    "top_domains": filiere.top_domains,
+                    "confidence": confidence,
+                    "top_domains": filiere.top_domains[:3] if filiere.top_domains else [],
                     "domain_matches": [
                         {
                             "domain": dm.domain_name,
                             "student_score": dm.domain_score,
                             "importance": dm.importance
                         }
-                        for dm in filiere.domain_matches
-                    ]
+                        for dm in (filiere.domain_matches or [])
+                    ][:3]  # Top 3 domain matches
                 }
             )
             
             recommendations.append(rec)
-            logger.debug(f"   #{rank}: {filiere.filiere_name} ({filiere.compatibility_level})")
+            logger.debug(f"   #{rank}: {filiere.filiere_name} ({filiere.compatibility_level}) - {filiere.score:.2%}")
         
         logger.info(f"✅ Generated {len(recommendations)} filière recommendations")
         return recommendations
     
+    def _apply_diversity_filter(
+        self, 
+        candidates: List[FiliereScore], 
+        top_n: int
+    ) -> List[FiliereScore]:
+        """
+        Applique un filtre de diversité pour éviter la redondance de clusters.
+        """
+        if not candidates:
+            return []
+        
+        # Trier par score
+        candidates = sorted(candidates, key=lambda x: x.score, reverse=True)
+        
+        selected = []
+        seen_clusters = set()
+        max_per_cluster = max(1, top_n // 3)  # Max 1/3 du top par cluster
+        
+        for candidate in candidates:
+            if len(selected) >= top_n:
+                break
+            
+            cluster = candidate.cluster or "unknown"
+            cluster_count = sum(1 for s in selected if (s.cluster or "unknown") == cluster)
+            
+            if cluster_count < max_per_cluster or cluster not in seen_clusters:
+                selected.append(candidate)
+                seen_clusters.add(cluster)
+        
+        # Si pas assez, compléter avec les meilleurs restants
+        if len(selected) < top_n:
+            remaining = [c for c in candidates if c not in selected]
+            selected.extend(remaining[:top_n - len(selected)])
+        
+        return selected
+    
+    def _generate_filiere_reason(
+        self, 
+        filiere: FiliereScore, 
+        context: Optional[RecommendationContext],
+        rank: int
+    ) -> str:
+        """
+        Génère une raison personnalisée pour la recommandation.
+        """
+        # Base reason par niveau de compatibilité
+        if filiere.compatibility_level == "high":
+            reason = f"Excellent match - {', '.join(filiere.top_domains[:2])} correspondent parfaitement à votre profil"
+        elif filiere.compatibility_level == "medium":
+            reason = f"Bon match - {filiere.top_domains[0] if filiere.top_domains else 'vos intérêts'} correspondent bien"
+        else:
+            reason = f"Potentiel intéressant - à explorer dans le domaine {filiere.field}"
+        
+        # Ajout du contexte bac si disponible
+        if context and context.bac_type:
+            reason += f" (Bac {context.bac_type.upper()})"
+        
+        # Ajout du cluster dominant
+        if context and context.dominant_cluster and filiere.cluster == context.dominant_cluster:
+            reason += " - parfaitement aligné avec votre profil dominant"
+        
+        # Bonus pour top 3
+        if rank <= 3:
+            reason = f"🔥 {reason}"
+        
+        return reason
+    
+    def _calculate_filiere_confidence(
+        self, 
+        filiere: FiliereScore, 
+        context: Optional[RecommendationContext]
+    ) -> float:
+        """
+        Calcule un score de confiance pour la recommandation.
+        """
+        confidence = 0.7  # Base
+        
+        # Plus de domaines matchés = plus de confiance
+        if filiere.top_domains:
+            confidence += min(0.2, len(filiere.top_domains) * 0.05)
+        
+        # Niveau de compatibilité
+        if filiere.compatibility_level == "high":
+            confidence += 0.1
+        elif filiere.compatibility_level == "medium":
+            confidence += 0.05
+        
+        # Bonus cluster match
+        if context and context.dominant_cluster and filiere.cluster == context.dominant_cluster:
+            confidence += 0.05
+        
+        return min(0.95, confidence)
+    
     # =========================================================================
-    # UNIVERSITÉ RECOMMENDATIONS
+    # UNIVERSITÉ RECOMMENDATIONS (AMÉLIORÉES)
     # =========================================================================
     
     def recommend_universites(
         self,
         universite_scores: List[UniversiteScore],
         filiere_recommendations: List[Recommendation],
-        top_n: int = 5
+        top_n: int = 5,
+        context: Optional[RecommendationContext] = None
     ) -> List[Recommendation]:
         """
-        Recommend universités based on:
-        - PORA score (popularity + engagement + orientation fit)
-        - Offers student's recommended filieres
-        - Ranking
+        Recommend universités with enhanced scoring
+        
+        Améliorations:
+        - Pondération par recommandations de filières
+        - Bonus pour clusters dominants
+        - Explications personnalisées
         """
         logger.info(f"🎯 Generating université recommendations (top {top_n})")
         
         # Get recommended filière IDs
-        recommended_filiere_ids = {
-            rec.id for rec in filiere_recommendations
-        }
+        recommended_filiere_ids = {rec.id for rec in filiere_recommendations}
         
-        # Score universités: boost if they offer recommended filieres
+        # Score universités with enhanced logic
         scored_unis = []
         for uni in universite_scores:
-            score = uni.pora_score
+            base_score = uni.pora_score
             
-            # Bonus: how many recommended filieres does this université offer?
-            offered_recommended = [
-                f for f in uni.filieres if f in recommended_filiere_ids
-            ]
+            # 1. Bonus pour filières recommandées
+            offered_recommended = [f for f in uni.filieres if f in recommended_filiere_ids]
+            filiere_bonus = min(0.25, len(offered_recommended) * 0.06)
             
+            # 2. Bonus si cluster correspond
+            cluster_bonus = 0.0
+            if context and context.dominant_cluster and hasattr(uni, 'best_filiere_match'):
+                best_filiere = uni.best_filiere_match or {}
+                if best_filiere.get('cluster') == context.dominant_cluster:
+                    cluster_bonus = 0.1
+            
+            adjusted_score = min(1.0, base_score + filiere_bonus + cluster_bonus)
+            
+            # Générer une raison
             if offered_recommended:
-                # Boost score if offers recommended filieres
-                filiere_bonus = min(0.2, len(offered_recommended) * 0.05)  # Max 0.2 bonus
-                score = min(1.0, score + filiere_bonus)
-                
-                reason = f"Offers {len(offered_recommended)} of your top filieres"
+                reason = f"Offre {len(offered_recommended)} de vos filières recommandées"
+            elif cluster_bonus > 0:
+                reason = f"Excellent alignement avec votre profil {context.dominant_cluster}"
             else:
-                reason = "Highly ranked - excellent reputation and engagement"
+                reason = "Très bien classée - excellente réputation et engagement"
             
             scored_unis.append({
                 "universite": uni,
-                "adjusted_score": score,
+                "adjusted_score": adjusted_score,
                 "offered_recommended_count": len(offered_recommended),
                 "reason": reason
             })
@@ -170,48 +297,72 @@ class RecommendationEngine:
                     "popularity": uni.popularity,
                     "filieres_count": len(uni.filieres),
                     "rank": rank,
-                    "recommended_filieres": uni.filieres[:5]  # Top 5
+                    "recommended_filieres": uni.filieres[:5],
+                    "offered_recommended_count": item["offered_recommended_count"]
                 }
             )
             
             recommendations.append(rec)
-            logger.debug(f"   #{rank}: {uni.universite_name} (PORA: {uni.pora_score:.4f})")
+            logger.debug(f"   #{rank}: {uni.universite_name} (adjusted: {item['adjusted_score']:.4f})")
         
         logger.info(f"✅ Generated {len(recommendations)} université recommendations")
         return recommendations
     
     # =========================================================================
-    # CENTRE RECOMMENDATIONS
+    # CENTRE RECOMMENDATIONS (AMÉLIORÉES)
     # =========================================================================
     
     def recommend_centres(
         self,
         centre_scores: List[CentreScore],
-        top_n: int = 5
+        top_n: int = 5,
+        universite_recs: Optional[List[Recommendation]] = None
     ) -> List[Recommendation]:
         """
-        Recommend centres de formation based on:
-        - PORA score
-        - Associated université
-        - Engagement metrics
+        Recommend centres with boost from université recommendations
         """
         logger.info(f"🏫 Generating centre de formation recommendations (top {top_n})")
         
-        # Take top N by PORA
-        top_centres = centre_scores[:top_n]
+        # Get recommended université IDs for boost
+        recommended_uni_ids = set()
+        if universite_recs:
+            recommended_uni_ids = {rec.id for rec in universite_recs[:3]}
+        
+        scored_centres = []
+        for centre in centre_scores:
+            base_score = centre.pora_score
+            boost = 0.0
+            
+            # Boost if associated with recommended université
+            if centre.universite_name and centre.universite_name in [u.name for u in universite_recs[:3]]:
+                boost = 0.15
+            
+            adjusted_score = min(1.0, base_score + boost)
+            
+            if centre.universite_name:
+                reason = f"Centre de formation de {centre.universite_name} - reconnu pour sa qualité"
+            else:
+                reason = "Centre de formation de qualité - excellents taux de réussite"
+            
+            scored_centres.append({
+                "centre": centre,
+                "adjusted_score": adjusted_score,
+                "reason": reason
+            })
+        
+        scored_centres.sort(key=lambda x: x["adjusted_score"], reverse=True)
+        top_centres = scored_centres[:top_n]
         
         recommendations = []
-        for rank, centre in enumerate(top_centres, 1):
-            reason = f"Top rated center - strong engagement and high quality training"
-            if centre.universite_name:
-                reason = f"{centre.universite_name} training center - excellent reputation"
+        for rank, item in enumerate(top_centres, 1):
+            centre = item["centre"]
             
             rec = Recommendation(
                 id=centre.centre_id,
                 name=centre.centre_name,
                 type=RecommendationType.CENTRES,
-                score=centre.pora_score,
-                reason=reason,
+                score=item["adjusted_score"],
+                reason=item["reason"],
                 metadata={
                     "universite": centre.universite_name,
                     "pora_score": centre.pora_score,
@@ -228,20 +379,24 @@ class RecommendationEngine:
         return recommendations
     
     # =========================================================================
-    # CROSS RECOMMENDATIONS
+    # CROSS RECOMMENDATIONS (AMÉLIORÉES)
     # =========================================================================
     
     def get_cross_recommendations(
         self,
         selected_filiere_id: str,
-        top_n: int = 3
+        top_n: int = 3,
+        confidence_threshold: float = 0.5
     ) -> List[Recommendation]:
         """
-        Get cross-recommendations from formation_recommandations_cross table
-        
-        Useful for: "Students who chose X also chose Y"
+        Get cross-recommendations with confidence filter
         """
         logger.info(f"🔗 Fetching cross-recommendations for filière {selected_filiere_id}")
+        
+        cache_key = f"cross_{selected_filiere_id}_{top_n}"
+        if self.use_cache and cache_key in self._cache:
+            logger.info(f"Cache hit for cross-recommendations")
+            return self._cache[cache_key]
         
         try:
             result = self.supabase.table("formation_recommandations_cross").select("""
@@ -255,28 +410,45 @@ class RecommendationEngine:
             
             recommendations = []
             for row in result.data:
+                confidence = float(row.get("confidence_score", 0.0))
+                
+                # Filter by confidence threshold
+                if confidence < confidence_threshold:
+                    continue
+                
                 filiere_info = row.get("filieres")
                 if not filiere_info:
                     continue
                 
-                confidence = float(row.get("confidence_score", 0.0))
+                # Generate confidence-based reason
+                if confidence >= 0.8:
+                    reason = "Les étudiants dans ce programme choisissent souvent cette filière"
+                elif confidence >= 0.6:
+                    reason = "Souvent recommandée avec votre filière d'intérêt"
+                else:
+                    reason = "Parfois choisie en complément"
                 
                 rec = Recommendation(
                     id=filiere_info.get("id"),
                     name=filiere_info.get("name"),
                     type=RecommendationType.FILIERES,
                     score=confidence,
-                    reason="Students in similar programs often choose this",
+                    reason=reason,
                     metadata={
                         "type": "cross_recommendation",
                         "confidence": confidence,
-                        "field": filiere_info.get("field")
+                        "field": filiere_info.get("field"),
+                        "source_filiere_id": selected_filiere_id
                     }
                 )
                 
                 recommendations.append(rec)
             
-            logger.info(f"✅ Found {len(recommendations)} cross-recommendations")
+            # Cache results
+            if self.use_cache:
+                self._cache[cache_key] = recommendations
+            
+            logger.info(f"✅ Found {len(recommendations)} cross-recommendations (confidence >= {confidence_threshold})")
             return recommendations
             
         except Exception as e:
@@ -284,7 +456,7 @@ class RecommendationEngine:
             return []
     
     # =========================================================================
-    # AGGREGATE ALL RECOMMENDATIONS
+    # AGGREGATE ALL RECOMMENDATIONS (AMÉLIORÉ)
     # =========================================================================
     
     def aggregate_recommendations(
@@ -292,26 +464,156 @@ class RecommendationEngine:
         filiere_recs: List[Recommendation],
         universite_recs: List[Recommendation],
         centre_recs: List[Recommendation],
-        cross_recs: Optional[List[Recommendation]] = None
-    ) -> Dict[str, List[Recommendation]]:
+        cross_recs: Optional[List[Recommendation]] = None,
+        context: Optional[RecommendationContext] = None
+    ) -> Dict[str, Any]:
         """
-        Aggregate all recommendations into organized structure
+        Aggregate all recommendations with metadata and insights
         """
-        logger.info("📦 Aggregating all recommendations...")
+        logger.info("📦 Aggregating all recommendations with insights...")
+        
+        # Generate global insight
+        insight = self._generate_global_insight(
+            filiere_recs, universite_recs, centre_recs, context
+        )
+        
+        # Calculate summary statistics
+        summary = {
+            "total_recommendations": len(filiere_recs) + len(universite_recs) + len(centre_recs) + len(cross_recs or []),
+            "filieres_count": len(filiere_recs),
+            "universites_count": len(universite_recs),
+            "centres_count": len(centre_recs),
+            "cross_count": len(cross_recs or []),
+            "top_filiere_score": filiere_recs[0].score if filiere_recs else 0,
+            "top_universite_score": universite_recs[0].score if universite_recs else 0,
+        }
         
         aggregated = {
-            "filieres": filiere_recs,
-            "universites": universite_recs,
-            "centres": centre_recs
+            "recommendations": {
+                "filieres": filiere_recs,
+                "universites": universite_recs,
+                "centres": centre_recs
+            },
+            "insight": insight,
+            "summary": summary,
+            "context": {
+                "user_type": context.user_type if context else None,
+                "bac_type": context.bac_type if context else None,
+                "dominant_cluster": context.dominant_cluster if context else None,
+                "confidence": context.confidence if context else 0.0
+            } if context else {}
         }
         
         if cross_recs:
-            aggregated["cross_recommendations"] = cross_recs
+            aggregated["recommendations"]["cross"] = cross_recs
         
-        total = len(filiere_recs) + len(universite_recs) + len(centre_recs) + len(cross_recs or [])
-        logger.info(f"✅ Aggregated {total} total recommendations")
+        logger.info(f"✅ Aggregated {summary['total_recommendations']} total recommendations")
+        logger.info(f"   Insight: {insight[:100]}...")
         
         return aggregated
+    
+    def _generate_global_insight(
+        self,
+        filiere_recs: List[Recommendation],
+        universite_recs: List[Recommendation],
+        centre_recs: List[Recommendation],
+        context: Optional[RecommendationContext]
+    ) -> str:
+        """
+        Génère un insight global personnalisé.
+        """
+        if not filiere_recs:
+            return "Aucune recommandation disponible pour le moment."
+        
+        top_filiere = filiere_recs[0].name
+        
+        insights = []
+        
+        # Insight sur la top filière
+        if filiere_recs[0].score >= 0.8:
+            insights.append(f"Votre profil correspond exceptionnellement bien à {top_filiere}")
+        elif filiere_recs[0].score >= 0.6:
+            insights.append(f"{top_filiere} est particulièrement adapté à votre profil")
+        else:
+            insights.append(f"Explorez {top_filiere} qui correspond à vos intérêts")
+        
+        # Insight sur le bac
+        if context and context.bac_type:
+            bac_advice = {
+                "C": "votre bac scientifique est un excellent atout",
+                "D": "votre bac scientifique vous ouvre de nombreuses portes",
+                "A": "votre bac littéraire est parfait pour les domaines humains",
+                "G": "votre bac commercial est idéal pour les études de gestion"
+            }
+            advice = bac_advice.get(context.bac_type.upper(), "votre baccalauréat est un bon point de départ")
+            insights.append(advice)
+        
+        # Insight sur la diversité
+        if len(set(r.name for r in filiere_recs[:3])) >= 2:
+            insights.append("Vous avez plusieurs options prometteuses dans différents domaines")
+        
+        return " 🔥 ".join(insights[:2])
+    
+    # =========================================================================
+    # UTILITY METHODS
+    # =========================================================================
+    
+    def clear_cache(self, key: Optional[str] = None):
+        """Vide le cache des recommandations."""
+        if key:
+            self._cache.pop(key, None)
+            logger.info(f"Cache cleared for key: {key}")
+        else:
+            self._cache.clear()
+            logger.info("Full cache cleared")
+    
+    def build_response_from_scores(
+        self,
+        filiere_scores: List[FiliereScore],
+        universite_scores: List[UniversiteScore],
+        centre_scores: List[CentreScore],
+        context: RecommendationContext,
+        top_n: int = 5
+    ) -> ProaComputeResponse:
+        """
+        Construit une réponse PROA complète à partir des scores.
+        """
+        from models.proa import ProaComputeResponse
+        
+        # Générer les recommandations
+        filiere_recs = self.recommend_filieres(filiere_scores, top_n, context=context)
+        universite_recs = self.recommend_universites(universite_scores, filiere_recs, top_n, context=context)
+        centre_recs = self.recommend_centres(centre_scores, top_n, universite_recs)
+        
+        # Agréger
+        aggregated = self.aggregate_recommendations(
+            filiere_recs, universite_recs, centre_recs,
+            context=context
+        )
+        
+        # Construire la réponse
+        return ProaComputeResponse(
+            user_id=context.user_id,
+            timestamp=context.timestamp,
+            features={},
+            domain_scores=[],
+            filiere_scores=filiere_scores[:top_n],
+            universites=universite_scores[:top_n],
+            centres=centre_scores[:top_n],
+            recommendations=aggregated["recommendations"],
+            total_questions=0,
+            matched_questions=0,
+            coverage=1.0,
+            confidence=context.confidence,
+            computation_time_ms=context.computation_time_ms,
+            bac_info={"bac_type": context.bac_type} if context.bac_type else None,
+            metrics={
+                "insight": aggregated["insight"],
+                "summary": aggregated["summary"]
+            },
+            scoring_method="v2_enhanced",
+            hybrid_scores_used=True
+        )
 
 
 # ============================================================================
@@ -329,6 +631,8 @@ def prioritize_recommendations(
         return sorted(recommendations, key=lambda x: x.score, reverse=True)
     elif criteria == "name":
         return sorted(recommendations, key=lambda x: x.name)
+    elif criteria == "confidence":
+        return sorted(recommendations, key=lambda x: x.metadata.get("confidence", 0), reverse=True)
     else:
         return recommendations
 
@@ -343,3 +647,16 @@ def filter_recommendations_by_type(
         if isinstance(rec_list, list):
             results.extend([r for r in rec_list if r.type == rec_type])
     return results
+
+
+def deduplicate_recommendations(
+    recommendations: List[Recommendation]
+) -> List[Recommendation]:
+    """Deduplicate recommendations by ID"""
+    seen = set()
+    deduped = []
+    for rec in recommendations:
+        if rec.id not in seen:
+            seen.add(rec.id)
+            deduped.append(rec)
+    return deduped

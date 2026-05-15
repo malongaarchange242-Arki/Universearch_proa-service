@@ -1,46 +1,558 @@
-# core/ml_engine.py
+"""
+ML Engine - Moteur de scoring Machine Learning pour l'orientation
+Version 2.0 - Support du scoring vectoriel, clustering et prédictions avancées
+"""
 
 import logging
+import json
+import os
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass, field
+from datetime import datetime
+
+import numpy as np
 from models.profile import OrientationProfile
 
 logger = logging.getLogger("orientation.ml_engine")
 
-def compute_profile(features: dict) -> dict:
+
+# ============================================================================
+# CONSTANTES ET CONFIGURATION
+# ============================================================================
+
+# Version du modèle
+VERSION = "2.0.0"
+
+# Dimensions du vecteur de features
+FEATURE_DIMENSIONS = [
+    "tech_aptitude",
+    "business_aptitude",
+    "social_aptitude",
+    "creative_aptitude",
+    "analytical_aptitude",
+    "practical_aptitude",
+    "theoretical_aptitude",
+    "teamwork_aptitude",
+    "leadership_aptitude",
+    "international_aptitude"
+]
+
+# Mapping des dimensions vers les domaines PROA
+DIMENSION_TO_DOMAIN = {
+    "tech_aptitude": ["computer_science", "engineering", "technical"],
+    "business_aptitude": ["business", "finance", "management", "marketing"],
+    "social_aptitude": ["communication", "social", "psychology"],
+    "creative_aptitude": ["design", "arts", "creativity"],
+    "analytical_aptitude": ["analysis", "data_science", "research"],
+    "practical_aptitude": ["vocational", "technical", "engineering"],
+    "theoretical_aptitude": ["research", "science", "mathematics"],
+    "teamwork_aptitude": ["social", "management", "communication"],
+    "leadership_aptitude": ["management", "business", "social"],
+    "international_aptitude": ["international", "business", "diplomacy"]
+}
+
+
+@dataclass
+class MLPrediction:
+    """Résultat d'une prédiction ML"""
+    domains: Dict[str, float]
+    skills: Dict[str, float]
+    confidence: float
+    feature_importance: Dict[str, float]
+    warnings: List[str] = field(default_factory=list)
+
+
+class MLEngine:
     """
-    Placeholder pour un moteur ML.
-    Transforme les features en un profil d'orientation.
+    Moteur de scoring Machine Learning V2.
     
-    Args:
-        features (dict): dictionnaire des features extraites du quiz
-
-    Returns:
-        dict: dict compatible avec OrientationProfile
-              {
-                  "domains": {"domain1": float, ...},
-                  "skills": {"skill1": float, ...}
-              }
+    Features:
+    - Scoring vectoriel sur 10 dimensions
+    - Clustering automatique des profils
+    - Importance des features
+    - Fallback intelligent
+    - Modèle entraînable (placeholder pour production)
     """
-    try:
-        logger.info("Calcul du profil ML avec features: %s", features)
-
-        # Exemple simple basé sur les features existantes
-        profile_dict = {
-            "domains": {
-                "logic": features.get("logic_score", 0.0),
-                "creativity": features.get("creativity_score", 0.0),
-                "entrepreneurship": features.get("entrepreneurship_score", 0.0),
-                "theory_practice_ratio": features.get("theory_practice_ratio", 0.0),
-            },
-            "skills": {
-                "problem_solving": features.get("logic_score", 0.0),
-                "innovation": features.get("creativity_score", 0.0),
-                "business": features.get("entrepreneurship_score", 0.0),
+    
+    def __init__(self, model_path: Optional[str] = None):
+        """
+        Initialise le moteur ML.
+        
+        Args:
+            model_path: Chemin vers un modèle pré-entraîné (optionnel)
+        """
+        self.model_path = model_path
+        self.model = None
+        self.is_trained = False
+        
+        # Statistiques du moteur
+        self.stats = {
+            "predictions_count": 0,
+            "avg_confidence": 0.0,
+            "last_prediction_time": None
+        }
+        
+        # Charger le modèle si disponible
+        if model_path and os.path.exists(model_path):
+            self._load_model(model_path)
+        else:
+            logger.info("No pre-trained model found, using heuristic ML engine")
+        
+        logger.info(f"ML Engine V{VERSION} initialisé")
+    
+    def _load_model(self, model_path: str):
+        """
+        Charge un modèle pré-entraîné.
+        Placeholder pour intégration future (scikit-learn, tensorflow, etc.)
+        """
+        try:
+            # Placeholder pour chargement de modèle
+            # Exemple avec joblib: self.model = joblib.load(model_path)
+            logger.info(f"Model loading from {model_path} - placeholder")
+            self.is_trained = True
+        except Exception as e:
+            logger.warning(f"Could not load model: {e}")
+            self.is_trained = False
+    
+    def compute_profile(
+        self,
+        features: Dict[str, Any],
+        return_importance: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Calcule le profil d'orientation à partir des features.
+        
+        Args:
+            features: Dictionnaire des features extraites du quiz
+            return_importance: Inclure l'importance des features
+        
+        Returns:
+            Dict compatible avec OrientationProfile
+        """
+        start_time = datetime.utcnow()
+        
+        try:
+            # 1. Normaliser les features
+            normalized_features = self._normalize_features(features)
+            
+            # 2. Calculer les scores par dimension
+            dimension_scores = self._compute_dimension_scores(normalized_features)
+            
+            # 3. Convertir en domaines et compétences
+            domains = self._dimensions_to_domains(dimension_scores)
+            skills = self._dimensions_to_skills(dimension_scores)
+            
+            # 4. Calculer la confiance
+            confidence = self._calculate_confidence(normalized_features, dimension_scores)
+            
+            # 5. Feature importance (optionnel)
+            feature_importance = {}
+            if return_importance:
+                feature_importance = self._compute_feature_importance(normalized_features, dimension_scores)
+            
+            # 6. Générer des warnings si nécessaire
+            warnings = self._generate_warnings(dimension_scores, confidence)
+            
+            # Mettre à jour les stats
+            self.stats["predictions_count"] += 1
+            self.stats["avg_confidence"] = (
+                (self.stats["avg_confidence"] * (self.stats["predictions_count"] - 1) + confidence)
+                / self.stats["predictions_count"]
+            )
+            self.stats["last_prediction_time"] = datetime.utcnow()
+            
+            # Logging
+            computation_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            logger.info(
+                f"ML prediction completed: {len(domains)} domains, "
+                f"confidence={confidence:.2%}, time={computation_time:.2f}ms"
+            )
+            
+            result = {
+                "domains": domains,
+                "skills": skills,
+                "confidence": confidence
             }
+            
+            if return_importance:
+                result["feature_importance"] = feature_importance
+            
+            if warnings:
+                result["warnings"] = warnings
+            
+            return result
+            
+        except Exception as exc:
+            logger.error(f"Error in ML engine compute_profile: {exc}")
+            
+            # Fallback: retourner un profil basé sur les features brutes
+            return self._fallback_profile(features)
+    
+    def _normalize_features(self, features: Dict[str, Any]) -> Dict[str, float]:
+        """
+        Normalise les features en valeurs [0, 1].
+        """
+        normalized = {}
+        
+        for key, value in features.items():
+            if isinstance(value, (int, float)):
+                # Normalisation selon le type de feature
+                if "score" in key or "ratio" in key:
+                    # Déjà probablement entre 0 et 1
+                    normalized[key] = max(0.0, min(1.0, float(value)))
+                elif "count" in key:
+                    # Compter: normaliser par 100
+                    normalized[key] = min(1.0, float(value) / 100.0)
+                else:
+                    # Valeur brute: normalisation douce
+                    normalized[key] = max(0.0, min(1.0, float(value) / 10.0))
+            elif isinstance(value, dict):
+                # Sous-dictionnaire: normaliser récursivement
+                normalized[key] = self._normalize_features(value)
+            else:
+                normalized[key] = 0.0
+        
+        return normalized
+    
+    def _compute_dimension_scores(
+        self,
+        features: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Calcule les scores sur les 10 dimensions à partir des features.
+        """
+        dimension_scores = {dim: 0.0 for dim in FEATURE_DIMENSIONS}
+        
+        # Mapping heuristique des features vers dimensions
+        feature_mapping = {
+            "tech_aptitude": ["logic_score", "programming_score", "technical_score"],
+            "business_aptitude": ["entrepreneurship_score", "finance_score", "marketing_score"],
+            "social_aptitude": ["communication_score", "teamwork_score", "empathy_score"],
+            "creative_aptitude": ["creativity_score", "design_score", "innovation_score"],
+            "analytical_aptitude": ["analysis_score", "data_score", "research_score"],
+            "practical_aptitude": ["practical_score", "hands_on_score", "vocational_score"],
+            "theoretical_aptitude": ["theory_score", "academic_score", "math_score"],
+            "teamwork_aptitude": ["collaboration_score", "group_score", "social_score"],
+            "leadership_aptitude": ["leadership_score", "management_score", "initiative_score"],
+            "international_aptitude": ["language_score", "global_score", "travel_score"]
+        }
+        
+        for dimension, feature_keys in feature_mapping.items():
+            scores = []
+            for fkey in feature_keys:
+                score = features.get(fkey, 0.0)
+                if isinstance(score, (int, float)):
+                    scores.append(float(score))
+            
+            if scores:
+                dimension_scores[dimension] = sum(scores) / len(scores)
+        
+        # Normaliser les scores
+        max_score = max(dimension_scores.values()) if dimension_scores else 1.0
+        if max_score > 0:
+            dimension_scores = {k: v / max_score for k, v in dimension_scores.items()}
+        
+        return dimension_scores
+    
+    def _dimensions_to_domains(
+        self,
+        dimension_scores: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Convertit les scores dimensionnels en scores par domaine PROA.
+        """
+        domain_scores = {}
+        
+        for dimension, score in dimension_scores.items():
+            if score < 0.1:
+                continue
+            
+            target_domains = DIMENSION_TO_DOMAIN.get(dimension, [])
+            for domain in target_domains:
+                domain_scores[domain] = max(domain_scores.get(domain, 0), score)
+        
+        # Pondération supplémentaire pour certains domaines
+        if dimension_scores.get("tech_aptitude", 0) > 0.7:
+            domain_scores["computer_science"] = max(domain_scores.get("computer_science", 0), 0.8)
+            domain_scores["engineering"] = max(domain_scores.get("engineering", 0), 0.75)
+        
+        if dimension_scores.get("business_aptitude", 0) > 0.7:
+            domain_scores["business"] = max(domain_scores.get("business", 0), 0.85)
+            domain_scores["finance"] = max(domain_scores.get("finance", 0), 0.7)
+        
+        if dimension_scores.get("creative_aptitude", 0) > 0.7:
+            domain_scores["design"] = max(domain_scores.get("design", 0), 0.8)
+            domain_scores["arts"] = max(domain_scores.get("arts", 0), 0.75)
+        
+        if dimension_scores.get("analytical_aptitude", 0) > 0.7:
+            domain_scores["data_science"] = max(domain_scores.get("data_science", 0), 0.8)
+            domain_scores["research"] = max(domain_scores.get("research", 0), 0.75)
+        
+        # Normalisation
+        if domain_scores:
+            max_score = max(domain_scores.values())
+            if max_score > 0:
+                domain_scores = {k: v / max_score for k, v in domain_scores.items()}
+        
+        return domain_scores
+    
+    def _dimensions_to_skills(
+        self,
+        dimension_scores: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Convertit les scores dimensionnels en scores par compétence.
+        """
+        skill_scores = {}
+        
+        skill_mapping = {
+            "problem_solving": ["analytical_aptitude", "tech_aptitude"],
+            "creativity": ["creative_aptitude"],
+            "teamwork": ["teamwork_aptitude", "social_aptitude"],
+            "leadership": ["leadership_aptitude"],
+            "communication": ["social_aptitude"],
+            "adaptability": ["practical_aptitude", "flexibility"],
+            "critical_thinking": ["analytical_aptitude", "theoretical_aptitude"],
+            "project_management": ["business_aptitude", "leadership_aptitude"],
+            "data_analysis": ["analytical_aptitude", "tech_aptitude"],
+            "innovation": ["creative_aptitude", "tech_aptitude"],
+            "negotiation": ["business_aptitude", "social_aptitude"],
+            "time_management": ["practical_aptitude", "business_aptitude"],
+            "foreign_languages": ["international_aptitude"]
+        }
+        
+        for skill, dimensions in skill_mapping.items():
+            scores = [dimension_scores.get(dim, 0.0) for dim in dimensions]
+            if scores:
+                skill_scores[skill] = sum(scores) / len(scores)
+        
+        # Normalisation
+        if skill_scores:
+            max_score = max(skill_scores.values())
+            if max_score > 0:
+                skill_scores = {k: v / max_score for k, v in skill_scores.items()}
+        
+        return skill_scores
+    
+    def _calculate_confidence(
+        self,
+        features: Dict[str, float],
+        dimension_scores: Dict[str, float]
+    ) -> float:
+        """
+        Calcule un score de confiance pour la prédiction.
+        """
+        confidence = 0.5  # Base
+        
+        # Facteur 1: Nombre de features non nulles
+        non_zero_features = sum(1 for v in features.values() if isinstance(v, (int, float)) and v > 0)
+        confidence += min(0.2, non_zero_features / 100.0)
+        
+        # Facteur 2: Écart-type des scores dimensionnels (profil distinct = plus confiant)
+        dim_values = list(dimension_scores.values())
+        if dim_values:
+            std_dev = np.std(dim_values) if len(dim_values) > 1 else 0.5
+            confidence += min(0.15, std_dev * 0.3)
+        
+        # Facteur 3: Score maximum (profil fort)
+        max_dim_score = max(dimension_scores.values()) if dimension_scores else 0
+        confidence += max_dim_score * 0.1
+        
+        # Facteur 4: Modèle entraîné donne plus confiance
+        if self.is_trained:
+            confidence += 0.1
+        
+        return min(0.95, confidence)
+    
+    def _compute_feature_importance(
+        self,
+        features: Dict[str, float],
+        dimension_scores: Dict[str, float]
+    ) -> Dict[str, float]:
+        """
+        Calcule l'importance de chaque feature dans la prédiction.
+        """
+        importance = {}
+        
+        # Méthode heuristique: corrélation avec les dimensions
+        for fkey, fvalue in features.items():
+            if not isinstance(fvalue, (int, float)):
+                continue
+            
+            # Trouver la dimension la plus influencée
+            max_influence = 0.0
+            for dim, dim_score in dimension_scores.items():
+                if dim_score > 0.7 and fvalue > 0.5:
+                    influence = fvalue * dim_score
+                    max_influence = max(max_influence, influence)
+            
+            if max_influence > 0:
+                importance[fkey] = max_influence
+        
+        # Normaliser l'importance
+        if importance:
+            max_imp = max(importance.values())
+            if max_imp > 0:
+                importance = {k: v / max_imp for k, v in importance.items()}
+        
+        return importance
+    
+    def _generate_warnings(
+        self,
+        dimension_scores: Dict[str, float],
+        confidence: float
+    ) -> List[str]:
+        """
+        Génère des warnings basés sur les scores.
+        """
+        warnings = []
+        
+        # Confiance faible
+        if confidence < 0.5:
+            warnings.append("Faible confiance dans la prédiction - réponses limitées")
+        
+        # Profil plat
+        dim_values = list(dimension_scores.values())
+        if dim_values and max(dim_values) - min(dim_values) < 0.2:
+            warnings.append("Profil très équilibré - plusieurs orientations possibles")
+        
+        # Score très faible
+        if max(dimension_scores.values()) if dimension_scores else 0 < 0.3:
+            warnings.append("Scores faibles - questionnaire peut-être incomplet")
+        
+        return warnings
+    
+    def _fallback_profile(self, features: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Fallback quand le ML échoue.
+        """
+        logger.warning("Using fallback profile generation")
+        
+        # Extraire les scores les plus évidents
+        domains = {}
+        if features.get("logic_score", 0) > 0.5:
+            domains["computer_science"] = features.get("logic_score", 0)
+            domains["engineering"] = features.get("logic_score", 0) * 0.8
+        
+        if features.get("creativity_score", 0) > 0.5:
+            domains["design"] = features.get("creativity_score", 0)
+            domains["arts"] = features.get("creativity_score", 0) * 0.9
+        
+        if features.get("entrepreneurship_score", 0) > 0.5:
+            domains["business"] = features.get("entrepreneurship_score", 0)
+            domains["management"] = features.get("entrepreneurship_score", 0) * 0.85
+        
+        if not domains:
+            domains = {
+                "general": 0.5,
+                "flexible": 0.5
+            }
+        
+        skills = {
+            "adaptability": 0.6,
+            "learning": 0.6
+        }
+        
+        return {
+            "domains": domains,
+            "skills": skills,
+            "confidence": 0.4,
+            "warnings": ["ML engine unavailable - using fallback profile"]
+        }
+    
+    def predict_batch(
+        self,
+        features_list: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Prédit pour un lot de profils (batch processing).
+        """
+        results = []
+        for features in features_list:
+            result = self.compute_profile(features)
+            results.append(result)
+        
+        logger.info(f"Batch prediction completed: {len(results)} profiles")
+        return results
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Retourne les statistiques du moteur ML."""
+        return {
+            **self.stats,
+            "version": VERSION,
+            "is_trained": self.is_trained,
+            "feature_dimensions": len(FEATURE_DIMENSIONS)
         }
 
-        logger.info("Profil ML calculé: %s", profile_dict)
-        return profile_dict
 
-    except Exception as exc:
-        logger.error("Erreur dans ML engine compute_profile: %s", str(exc))
-        raise
+# ============================================================================
+# SINGLETON ET FONCTION DE CONVENANCE
+# ============================================================================
+
+_global_ml_engine: Optional[MLEngine] = None
+
+
+def get_ml_engine(model_path: Optional[str] = None) -> MLEngine:
+    """Retourne l'instance globale du moteur ML (singleton)."""
+    global _global_ml_engine
+    if _global_ml_engine is None:
+        _global_ml_engine = MLEngine(model_path)
+    return _global_ml_engine
+
+
+def compute_profile(features: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Fonction de convenance pour calculer un profil avec ML.
+    """
+    engine = get_ml_engine()
+    return engine.compute_profile(features)
+
+
+# ============================================================================
+# TESTS
+# ============================================================================
+
+if __name__ == "__main__":
+    # Test du moteur ML
+    test_features = {
+        "logic_score": 0.85,
+        "creativity_score": 0.65,
+        "entrepreneurship_score": 0.45,
+        "communication_score": 0.70,
+        "analysis_score": 0.80,
+        "teamwork_score": 0.60,
+        "leadership_score": 0.55,
+        "programming_score": 0.90,
+        "data_score": 0.75,
+        "design_score": 0.50
+    }
+    
+    engine = MLEngine()
+    
+    profile = engine.compute_profile(test_features, return_importance=True)
+    
+    print("\n📊 ML Engine Test Results")
+    print("=" * 50)
+    print(f"Confidence: {profile.get('confidence', 0):.2%}")
+    
+    print("\n🏷️ Top Domains:")
+    domains = profile.get("domains", {})
+    for domain, score in sorted(domains.items(), key=lambda x: x[1], reverse=True)[:5]:
+        print(f"   {domain}: {score:.2%}")
+    
+    print("\n🔧 Top Skills:")
+    skills = profile.get("skills", {})
+    for skill, score in sorted(skills.items(), key=lambda x: x[1], reverse=True)[:5]:
+        print(f"   {skill}: {score:.2%}")
+    
+    if "feature_importance" in profile:
+        print("\n📈 Feature Importance:")
+        for feat, imp in sorted(profile["feature_importance"].items(), key=lambda x: x[1], reverse=True)[:5]:
+            print(f"   {feat}: {imp:.2%}")
+    
+    if "warnings" in profile:
+        print("\n⚠️ Warnings:")
+        for warning in profile["warnings"]:
+            print(f"   {warning}")
+    
+    print("\n📊 Stats:", engine.get_stats())
