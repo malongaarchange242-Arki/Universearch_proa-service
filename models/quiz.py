@@ -438,6 +438,55 @@ class LegacyQuizSubmission(BaseModel):
 
 
 # ============================================================================
+# MODÈLE QUIZ SUBMISSION (pour compatibilité avec routes.py)
+# ============================================================================
+
+class QuizSubmission(BaseModel):
+    """
+    Modèle de soumission de quiz pour compatibilité avec routes.py
+    """
+    user_id: str
+    user_type: str = Field(default="all", description="Type d'utilisateur: 'all', 'bachelier', 'étudiant', 'parent'")
+    quiz_version: str = "1.0"
+    orientation_type: str = Field(default="field", description="Type d'orientation: 'field' ou 'institution'")
+    responses: Dict[str, Union[int, float]]
+    response_metadata: Optional[Dict[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="Metadonnees facultatives de reponse (raw_value, selected_text, question_type, etc.)",
+    )
+
+    @field_validator("responses", mode="before")
+    @classmethod
+    def validate_responses_not_null(cls, v):
+        """Rejette les responses nulles ou vides"""
+        if v is None:
+            raise ValueError("responses cannot be null")
+        if not isinstance(v, dict):
+            raise ValueError("responses must be a dictionary")
+        if len(v) == 0:
+            raise ValueError("responses cannot be empty")
+        return v
+
+    @field_validator("responses", mode="after")
+    @classmethod
+    def validate_response_values(cls, v):
+        """Valide que toutes les valeurs sont numériques"""
+        for key, value in v.items():
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"Response value for {key} must be numeric, got {type(value)}")
+            if not (1 <= value <= 4):
+                raise ValueError(f"Response value for {key} must be between 1 and 4, got {value}")
+        return v
+
+    @field_validator("orientation_type")
+    @classmethod
+    def validate_orientation_type(cls, v):
+        if v not in ["field", "institution"]:
+            raise ValueError("orientation_type doit être 'field' ou 'institution'")
+        return v
+
+
+# ============================================================================
 # TESTS
 # ============================================================================
 
@@ -466,11 +515,3 @@ if __name__ == "__main__":
     
     migrated = legacy.migrate_to_v2()
     print(f"\n✅ Legacy migration: {migrated.quiz_code}")
-
-
-# ============================================================================
-# ALIASES POUR COMPATIBILITÉ BACKWARD
-# ============================================================================
-
-# Alias pour compatibilité avec les imports existants
-QuizSubmission = QuizSubmissionRequest

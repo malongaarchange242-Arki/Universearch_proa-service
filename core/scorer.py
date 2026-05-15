@@ -11,7 +11,7 @@ from datetime import datetime
 
 from config import ENGINE_MODE
 from core import rule_engine, ml_engine
-from core.feature_engineering import compute_recommended_fields
+from core.recommendations import compute_recommended_fields
 from models.proa import UserType, ProaComputeRequest
 from models.profile import OrientationProfile
 

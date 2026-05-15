@@ -45,73 +45,53 @@ def _normalize_response_score(response_value: Any, max_score: float, exponent: f
 
 def _load_orientation_config() -> Dict[str, Any]:
     """Load configuration from orientation_config.json"""
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), "..", "orientation_config.json"),
-        os.path.join("/app", "orientation_config.json"),  # Docker
-        "orientation_config.json",  # Current directory
-    ]
-    
-    for config_path in possible_paths:
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                logger.info(f"✅ Loaded orientation_config.json from: {config_path} ({len(config)} keys)")
-                return config
-        except Exception as e:
-            logger.debug(f"⚠️ Could not load from {config_path}: {e}")
-            continue
-    
-    logger.error(f"❌ orientation_config.json not found. Using fallback defaults.")
-    return {"max_score": 5, "domains": {}, "skills": {}}
+    try:
+        config_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "orientation_config.json",
+        )
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        logger.info(f"✅ Loaded orientation_config.json: {len(config)} keys")
+        return config
+    except Exception as e:
+        logger.error(f"❌ Failed to load orientation_config.json: {e}")
+        return {"max_score": 5, "domains": {}, "skills": {}}  # Support 1-5 maintenant
 
 
 def _load_semantic_mapping() -> Dict[str, Any]:
     """Load semantic question code to domain mapping"""
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), "..", "semantic_question_mapping.json"),
-        os.path.join("/app", "semantic_question_mapping.json"),  # Docker
-        "semantic_question_mapping.json",  # Current directory
-    ]
-    
-    for mapping_path in possible_paths:
-        try:
-            if os.path.exists(mapping_path):
-                with open(mapping_path, "r", encoding="utf-8") as f:
-                    mapping = json.load(f)
-                logger.info(f"✅ Loaded semantic_question_mapping.json from: {mapping_path} ({len(mapping.get('semantic_to_domain_mapping', {}))} mappings)")
-                return mapping
-        except Exception as e:
-            logger.debug(f"⚠️ Could not load from {mapping_path}: {e}")
-            continue
-    
-    logger.warning(f"⚠️ semantic_question_mapping.json not found. Semantic codes will not be mapped.")
-    return {"semantic_to_domain_mapping": {}}
+    try:
+        mapping_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "semantic_question_mapping.json",
+        )
+        with open(mapping_path, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+        logger.info(f"✅ Loaded semantic_question_mapping.json: {len(mapping.get('semantic_to_domain_mapping', {}))} mappings")
+        return mapping
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load semantic_question_mapping.json: {e}")
+        return {"semantic_to_domain_mapping": {}}
 
 
 def _load_bac_config() -> Dict[str, Any]:
-    """Load bac compatibility configuration with fallback"""
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), "..", "bac_config.json"),
-        os.path.join("/app", "bac_config.json"),  # Docker
-        "bac_config.json",  # Current directory
-    ]
-    
-    for config_path in possible_paths:
-        try:
-            if os.path.exists(config_path):
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                logger.info(f"✅ Loaded bac_config.json from: {config_path}")
-                return config
-        except Exception as e:
-            logger.debug(f"⚠️ Could not load from {config_path}: {e}")
-            continue
-    
-    # Fallback: return empty dict (bac filtering will be disabled)
-    logger.warning(f"⚠️ bac_config.json not found in any expected location. Bac filtering disabled.")
-    logger.warning(f"   Tried: {possible_paths}")
-    return {}
+    """Load bac compatibility configuration"""
+    try:
+        config_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "bac_config.json",
+        )
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        logger.info(f"✅ Loaded bac_config.json: {len(config)} keys")
+        return config
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load bac_config.json: {e}")
+        return {}
 
 
 # Load config at module startup
@@ -662,6 +642,17 @@ def get_question_domain_mapping(supabase: Client) -> Dict[str, List[Dict[str, An
     Legacy function - kept for backward compatibility.
     """
     return {}
+
+
+def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[str, Any]:
+    """
+    Compatibility wrapper to expose compute_recommended_fields from core.recommendations.
+
+    This is kept here so that modules still importing the function from
+    core.feature_engineering continue to work.
+    """
+    from core.recommendations import compute_recommended_fields as _compute_recommended_fields_impl
+    return _compute_recommended_fields_impl(profile, top_n)
 
 
 # ==================================================

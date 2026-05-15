@@ -8,8 +8,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from supabase import Client
 
-from core.feature_engineering import compute_recommended_fields
-from core.proa_scoring import PoraScoring
+from core.recommendations import compute_recommended_fields
+from core.pora_scoring import PoraScoring
 from models.proa import FiliereScore, UniversiteScore, CentreScore, ProaComputeResponse
 
 logger = logging.getLogger(__name__)

@@ -34,9 +34,9 @@ class RecommendationType(str, Enum):
 class FeatureScore:
     """Individual feature score"""
     name: str
-    score: float  # [0, 1]
+    score: float
     weight: float
-    contribution: float  # score * weight
+    contribution: float
     question_count: int
 
 
@@ -45,10 +45,10 @@ class DomainScore:
     """Domain score - aggregation of features"""
     domain_id: str
     domain_name: str
-    score: float  # [0, 1]
+    score: float
     feature_scores: List[FeatureScore]
     total_weight: float
-    confidence: float  # based on coverage
+    confidence: float
 
 
 @dataclass
@@ -57,23 +57,26 @@ class FiliereDomainMapping:
     domain_id: str
     domain_name: str
     domain_score: float
-    importance: float  # weight in filière
-    contribution: float  # domain_score * importance
+    importance: float
+    contribution: float
 
 
 @dataclass
 class FiliereScore:
     """Filière score based on domain match"""
+    # ⚠️ IMPORTANT: Tous les champs SANS valeur par défaut d'abord
     filiere_id: str
     filiere_name: str
     field: str
-    cluster: Optional[str] = None          # Cluster métier (informatique, business, etc.)
+    score: float
+    
+    # Ensuite les champs AVEC valeur par défaut
+    cluster: Optional[str] = None
     duration_years: Optional[int] = None
-    score: float  # [0, 1]
     domain_matches: List[FiliereDomainMapping] = None
     top_domains: List[str] = None
-    domains_list: Optional[List[str]] = None  # Liste des domaines pour filtrage bac
-    compatibility_level: str = "fair"  # "excellent" | "good" | "fair" | "poor"
+    domains_list: Optional[List[str]] = None
+    compatibility_level: str = "fair"
     
     def __post_init__(self):
         if self.domain_matches is None:
@@ -87,21 +90,24 @@ class FiliereScore:
 @dataclass
 class UniversiteScore:
     """Université PORA score"""
+    # Sans défaut d'abord
     universite_id: str
     universite_name: str
-    filiere_match: float  # best filière score match
-    popularity: float  # [0, 1]
+    filiere_match: float
+    popularity: float
     filieres: List[str]
-    pora_score: float  # composite
+    pora_score: float
     ranking: int
-    best_filiere_match: Optional[Dict[str, Any]] = None  # ← AJOUTÉ : meilleure filière avec détails
-    pora_components: Optional[Dict[str, float]] = None   # ← AJOUTÉ : composants individuels PORA
+    
+    # Avec défaut ensuite
+    best_filiere_match: Optional[Dict[str, Any]] = None
+    pora_components: Optional[Dict[str, float]] = None
     
     def __post_init__(self):
         if self.pora_components is None:
             self.pora_components = {
                 "popularity": self.popularity,
-                "engagement": 0.0,  # À remplir si disponible
+                "engagement": 0.0,
                 "orientation": self.filiere_match
             }
 
@@ -109,6 +115,7 @@ class UniversiteScore:
 @dataclass
 class CentreScore:
     """Centre de formation PORA score"""
+    # Sans défaut d'abord
     centre_id: str
     centre_name: str
     universite_name: Optional[str]
@@ -117,8 +124,10 @@ class CentreScore:
     engagement_score: float
     pora_score: float
     ranking: int
-    best_filiere_match: Optional[Dict[str, Any]] = None  # ← AJOUTÉ : meilleure filière avec détails
-    pora_components: Optional[Dict[str, float]] = None   # ← AJOUTÉ : composants individuels PORA
+    
+    # Avec défaut ensuite
+    best_filiere_match: Optional[Dict[str, Any]] = None
+    pora_components: Optional[Dict[str, float]] = None
     
     def __post_init__(self):
         if self.pora_components is None:
@@ -143,48 +152,40 @@ class Recommendation:
 @dataclass
 class ProaComputeRequest:
     """PROA Compute Request"""
+    # Sans défaut d'abord
     user_id: str
     user_type: UserType
     quiz_version: str
-    orientation_type: str  # "field" | "career" | "general"
-    responses: Dict[str, int]  # {q1: 3, q2: 4, ...}
-    bac_code: Optional[str] = None       # Code bac congolais (A, C, D, E, F1-F4, G1-G3, BG, H1-H5, R1-R6, P2-P7)
+    orientation_type: str
+    responses: Dict[str, int]
+    
+    # Avec défaut ensuite
+    bac_code: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
 
 
 @dataclass
 class ProaComputeResponse:
     """PROA Compute Response - complete scoring result"""
+    # Sans défaut d'abord
     user_id: str
     timestamp: datetime
-    
-    # Raw scores
     features: Dict[str, FeatureScore]
     domain_scores: List[DomainScore]
     filiere_scores: List[FiliereScore]
-    
-    # PORA rankings
     universites: List[UniversiteScore]
     centres: List[CentreScore]
-    
-    # Recommendations
     recommendations: Dict[str, List[Recommendation]]
-    
-    # Metadata
     total_questions: int
     matched_questions: int
-    coverage: float  # matched / total
-    confidence: float  # overall confidence [0, 1]
+    coverage: float
+    confidence: float
     computation_time_ms: float
-    
-    # Bac info
-    bac_info: Optional[Dict[str, Any]] = None  # {bac_code, bac_valid, bac_sector, bac_description, bac_icon}
-    
-    # Quality metrics
     metrics: Dict[str, Any]
     
-    # Scoring metadata (← AJOUTÉ)
-    scoring_method: Optional[str] = None  # "legacy" | "hybrid" | "semantic"
+    # Avec défaut ensuite
+    bac_info: Optional[Dict[str, Any]] = None
+    scoring_method: Optional[str] = None
     hybrid_scores_used: bool = False
 
 
@@ -207,28 +208,23 @@ class CacheEntry:
 @dataclass
 class ComputationStats:
     """Computation statistics for monitoring"""
+    # Sans défaut d'abord
     user_id: str
     user_type: str
     start_time: datetime
-    end_time: Optional[datetime]
-    
-    # Counts
     total_responses: int
     valid_responses: int
     missing_responses: int
     invalid_responses: int
-    
-    # Coverage
     domain_coverage: float
     feature_coverage: float
     filiere_coverage: float
-    
-    # Performance
     db_query_count: int
     cache_hits: int
     cache_misses: int
     
-    # Hybrid scoring stats (← AJOUTÉ)
+    # Avec défaut ensuite
+    end_time: Optional[datetime] = None
     hybrid_scoring_used: bool = False
     semantic_scores_count: int = 0
     rule_scores_count: int = 0
@@ -242,15 +238,15 @@ class ComputationStats:
 
 
 # ============================================================================
-# HYBRID SCORING MODELS (← NOUVEAU)
+# HYBRID SCORING MODELS
 # ============================================================================
 
 @dataclass
 class SemanticScore:
     """Score sémantique pour une filière"""
     filiere_id: str
-    similarity_score: float  # 0-1
-    model_used: str  # "sentence-bert" | "tfidf"
+    similarity_score: float
+    model_used: str
     confidence: float
     matched_keywords: List[str] = field(default_factory=list)
 
@@ -259,7 +255,7 @@ class SemanticScore:
 class RuleBasedScore:
     """Score basé sur les règles métier"""
     filiere_id: str
-    rule_score: float  # 0-1
+    rule_score: float
     rules_applied: List[str] = field(default_factory=list)
     rule_weights: Dict[str, float] = field(default_factory=dict)
 
@@ -268,18 +264,21 @@ class RuleBasedScore:
 class InterestBasedScore:
     """Score basé sur les intérêts utilisateur"""
     filiere_id: str
-    interest_score: float  # 0-1
+    interest_score: float
     domain_weights: Dict[str, float] = field(default_factory=dict)
-    coverage: float = 0.0  # Couverture des domaines d'intérêt
+    coverage: float = 0.0
 
 
 @dataclass
 class HybridScoreResult:
     """Résultat complet du scoring hybride"""
+    # Sans défaut d'abord
     filiere_id: str
     filiere_name: str
-    total_score: float  # 0-1
-    confidence: float  # 0-1
+    total_score: float
+    confidence: float
+    
+    # Avec défaut ensuite
     semantic: Optional[SemanticScore] = None
     rule_based: Optional[RuleBasedScore] = None
     interest_based: Optional[InterestBasedScore] = None
@@ -294,6 +293,35 @@ class HybridScoreResult:
         elif self.total_score >= 0.4:
             return "medium"
         return "low"
+
+
+# ============================================================================
+# BAC CONGOLAIS MODELS
+# ============================================================================
+
+@dataclass
+class BacInfo:
+    """Information sur le bac congolais"""
+    bac_code: str
+    bac_name: str
+    bac_sector: str
+    bac_description: str
+    bac_icon: Optional[str] = None
+    allowed_clusters: List[str] = field(default_factory=list)
+    allowed_fields: List[str] = field(default_factory=list)
+    excluded_fields: List[str] = field(default_factory=list)
+    eligibility_score: float = 1.0
+    is_valid: bool = True
+
+
+@dataclass
+class FiliereCluster:
+    """Mapping entre domaine_id et cluster PROA"""
+    domaine_id: str
+    cluster_name: str
+    cluster_display_name: str
+    detection_method: str
+    confidence: float
 
 
 # ============================================================================
@@ -335,7 +363,7 @@ class FiliereRow:
         self.field = data.get("field")
         self.description = data.get("description")
         self.duration_years = data.get("duration_years")
-        self.cluster = data.get("cluster")  # ← AJOUTÉ
+        self.cluster = data.get("cluster")
 
 
 class UniversiteRow:
@@ -345,7 +373,7 @@ class UniversiteRow:
         self.name = data.get("name")
         self.followers_count = int(data.get("followers_count", 0))
         self.engagement_count = int(data.get("engagement_count", 0))
-        self.best_filiere_match = None  # ← AJOUTÉ
+        self.best_filiere_match = None
 
 
 class CentreRow:
@@ -357,48 +385,11 @@ class CentreRow:
         self.universite_name = data.get("universite_name")
         self.followers_count = int(data.get("followers_count", 0))
         self.engagement_count = int(data.get("engagement_count", 0))
-        self.best_filiere_match = None  # ← AJOUTÉ
+        self.best_filiere_match = None
 
 
 # ============================================================================
-# BAC CONGOLAIS MODELS (← NOUVEAU)
-# ============================================================================
-
-@dataclass
-class BacInfo:
-    """Information sur le bac congolais"""
-    bac_code: str  # A, C, D, E, F1-F4, G1-G3, BG, H1-H5, R1-R6, P2-P7
-    bac_name: str  # "Baccalauréat Scientifique - Option Mathématiques"
-    bac_sector: str  # "Scientifique" | "Littéraire" | "Technique" | "Pédagogique" | "Professionnel"
-    bac_description: str
-    bac_icon: Optional[str] = None  # URL ou code d'icône
-    
-    # Filtres par secteur
-    allowed_clusters: List[str] = field(default_factory=list)  # "informatique", "business", etc.
-    allowed_fields: List[str] = field(default_factory=list)
-    excluded_fields: List[str] = field(default_factory=list)
-    
-    # Statistiques
-    eligibility_score: float = 1.0  # 0-1, score d'éligibilité pour certaines filières
-    is_valid: bool = True
-
-
-# ============================================================================
-# FILIERE CLUSTER MAPPING (← NOUVEAU)
-# ============================================================================
-
-@dataclass
-class FiliereCluster:
-    """Mapping entre domaine_id et cluster PROA"""
-    domaine_id: str
-    cluster_name: str  # "informatique", "business", "engineering", "droit", "social", "geoscience", "agriculture", "arts_design"
-    cluster_display_name: str  # "Informatique & Data", "Business & Gestion", etc.
-    detection_method: str  # "direct_map" | "nlp_fallback" | "manual"
-    confidence: float  # 0-1
-    
-    
-# ============================================================================
-# UTILITY FUNCTIONS (← NOUVEAU)
+# UTILITY FUNCTIONS
 # ============================================================================
 
 def create_empty_proa_response(user_id: str) -> ProaComputeResponse:
@@ -417,8 +408,8 @@ def create_empty_proa_response(user_id: str) -> ProaComputeResponse:
         coverage=0.0,
         confidence=0.0,
         computation_time_ms=0.0,
-        bac_info=None,
         metrics={},
+        bac_info=None,
         scoring_method=None,
         hybrid_scores_used=False
     )

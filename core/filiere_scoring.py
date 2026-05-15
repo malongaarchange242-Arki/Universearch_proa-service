@@ -13,6 +13,21 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _extract_supabase_data(result: Any) -> Any:
+    if hasattr(result, "data"):
+        return getattr(result, "data")
+    if isinstance(result, dict):
+        return result.get("data")
+    return None
+
+
+def _extract_supabase_error(result: Any) -> Any:
+    if hasattr(result, "error"):
+        return getattr(result, "error")
+    if isinstance(result, dict):
+        return result.get("error")
+    return None
+
 
 @dataclass
 class FiliereScore:
@@ -127,12 +142,18 @@ class FiliereEngineScore:
         Initialise le moteur de scoring.
         
         Args:
-            db_connection: Connexion à la base de données (psycopg2, sqlite3, etc.)
+            db_connection: Connexion à la base de données (psycopg2, sqlite3, supabase client, etc.)
         """
         self.db = db_connection
-        self.cursor = db_connection.cursor()
-        logger.info("FiliereEngineScore initialisé")
-        
+        self.is_supabase = hasattr(db_connection, "table") and not hasattr(db_connection, "cursor")
+
+        if not self.is_supabase:
+            self.cursor = db_connection.cursor()
+            logger.info("FiliereEngineScore initialisé avec curseur SQL")
+        else:
+            self.cursor = None
+            logger.info("FiliereEngineScore initialisé avec client Supabase")
+
         # Créer la table des scores si elle n'existe pas
         self._create_scores_table()
     
@@ -196,6 +217,10 @@ class FiliereEngineScore:
         """
         
         try:
+            if self.is_supabase:
+                logger.info("Création de table ignorée pour Supabase client (assumer que la table existe)")
+                return
+
             # Détecter le type de base de données
             db_type = str(type(self.db)).lower()
             
@@ -261,6 +286,31 @@ class FiliereEngineScore:
         now = datetime.now()
         
         try:
+            if self.is_supabase:
+                data = {
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "filiere_id": filiere_score.filiere_id,
+                    "filiere_name": filiere_score.filiere_name,
+                    "cluster": filiere_score.cluster,
+                    "score": filiere_score.score,
+                    "compatibility_level": filiere_score.compatibility_level,
+                    "duration_years": filiere_score.duration_years,
+                    "user_domains": user_domains_json,
+                    "matched_domains": matched_domains_json,
+                    "top_domains": top_domains_json,
+                    "all_domains": all_domains_json,
+                    "score_details": score_details_json,
+                    "created_at": now.isoformat(),
+                    "updated_at": now.isoformat()
+                }
+                result = self.db.table("matcheur_filiere_scores").upsert(data, on_conflict="user_id,filiere_id").execute()
+                error = _extract_supabase_error(result)
+                if error:
+                    raise RuntimeError(error)
+                logger.debug(f"Score sauvegardé pour user={user_id}, filiere={filiere_score.filiere_name[:30]} (Supabase)")
+                return
+
             db_type = str(type(self.db)).lower()
             
             if "sqlite" in db_type:
@@ -401,6 +451,29 @@ class FiliereEngineScore:
         """
         
         try:
+            if self.is_supabase:
+                result = self.db.table("matcheur_proa_domains").select("proa_domain_id,weight").eq("filiere_id", filiere_id).execute()
+                rows = _extract_supabase_data(result) or []
+                proa_ids = [row.get("proa_domain_id") for row in rows if row.get("proa_domain_id")]
+                if not proa_ids:
+                    return []
+
+                domains_result = self.db.table("proa_domains").select("id,domain_name,cluster").in_("id", proa_ids).execute()
+                domains_rows = _extract_supabase_data(domains_result) or []
+                domains_map = {row.get("id"): row for row in domains_rows}
+
+                domains = []
+                for row in rows:
+                    domain_info = domains_map.get(row.get("proa_domain_id"))
+                    if domain_info:
+                        domains.append({
+                            "proa_domain_id": row.get("proa_domain_id"),
+                            "domain_name": domain_info.get("domain_name"),
+                            "cluster": domain_info.get("cluster"),
+                            "weight": row.get("weight", 1.0)
+                        })
+                return domains
+
             self.cursor.execute(query, (filiere_id,))
             results = self.cursor.fetchall()
             
@@ -440,23 +513,41 @@ class FiliereEngineScore:
         logger.info(f"Calcul des scores pour {len(user_domains)} domaines utilisateur: {user_domains}")
         
         # Récupérer toutes les filières
-        query = """
-            SELECT 
-                filiere_id,
-                filiere_name,
-                slug,
-                domaine_id,
-                sous_domaine_id,
-                duree_ans
-            FROM filieres
-            WHERE actif = 1 OR actif IS NULL
-            ORDER BY filiere_name
-        """
-        
         try:
-            self.cursor.execute(query)
-            filieres = self.cursor.fetchall()
-            logger.info(f"Récupération de {len(filieres)} filières actives")
+            if self.is_supabase:
+                result = self.db.table("filieres").select(
+                    "filiere_id,filiere_name,slug,domaine_id,sous_domaine_id,duree_ans,actif"
+                ).execute()
+                rows = _extract_supabase_data(result) or []
+                filieres = []
+                for row in rows:
+                    actif = row.get("actif")
+                    if actif in (1, True, None):
+                        filieres.append((
+                            row.get("filiere_id"),
+                            row.get("filiere_name"),
+                            row.get("slug"),
+                            row.get("domaine_id"),
+                            row.get("sous_domaine_id"),
+                            row.get("duree_ans"),
+                        ))
+                logger.info(f"Récupération de {len(filieres)} filières actives (Supabase)")
+            else:
+                query = """
+                    SELECT 
+                        filiere_id,
+                        filiere_name,
+                        slug,
+                        domaine_id,
+                        sous_domaine_id,
+                        duree_ans
+                    FROM filieres
+                    WHERE actif = 1 OR actif IS NULL
+                    ORDER BY filiere_name
+                """
+                self.cursor.execute(query)
+                filieres = self.cursor.fetchall()
+                logger.info(f"Récupération de {len(filieres)} filières actives")
         except Exception as e:
             logger.error(f"Erreur lors de la récupération des filières: {e}")
             return []
@@ -681,6 +772,27 @@ class FiliereEngineScore:
         """
         
         try:
+            if self.is_supabase:
+                result = self.db.table("matcheur_filiere_scores").select(
+                    "filiere_id,filiere_name,cluster,score,compatibility_level,duration_years,user_domains,matched_domains,top_domains,created_at"
+                ).eq("user_id", user_id).order("score", desc=True).limit(limit).execute()
+                rows = _extract_supabase_data(result) or []
+                scores = []
+                for row in rows:
+                    scores.append({
+                        "filiere_id": row.get("filiere_id"),
+                        "filiere_name": row.get("filiere_name"),
+                        "cluster": row.get("cluster"),
+                        "score": float(row.get("score", 0)),
+                        "compatibility_level": row.get("compatibility_level"),
+                        "duration_years": float(row.get("duration_years", 0)),
+                        "user_domains": row.get("user_domains") if isinstance(row.get("user_domains"), list) else json.loads(row.get("user_domains") or "[]"),
+                        "matched_domains": row.get("matched_domains") if isinstance(row.get("matched_domains"), dict) else json.loads(row.get("matched_domains") or "{}"),
+                        "top_domains": row.get("top_domains") if isinstance(row.get("top_domains"), list) else json.loads(row.get("top_domains") or "[]"),
+                        "created_at": row.get("created_at")
+                    })
+                return scores
+
             self.cursor.execute(query, (user_id, limit))
             results = self.cursor.fetchall()
             
