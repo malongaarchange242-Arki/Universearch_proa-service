@@ -3,8 +3,12 @@
 import json
 import logging
 import os
+<<<<<<< HEAD
 from typing import Dict, List, Optional, Tuple
 
+=======
+from typing import Any, Dict, List
+>>>>>>> 750cf4e (Mise à jour)
 from models.profile import OrientationProfile
 
 logger = logging.getLogger("orientation.rule_engine")
@@ -436,6 +440,7 @@ class RuleEngine:
 _ENGINE = RuleEngine()
 
 
+<<<<<<< HEAD
 def compute_profile(profile: OrientationProfile) -> List[float]:
     """Point d'entrée unique appelé par l'API."""
     return _ENGINE.build_orientation_vector(profile)
@@ -479,3 +484,47 @@ def filter_fields_by_bac(
 def get_recommended_bac_for_field(field_cluster: str) -> List[str]:
     """Suggère les bacs adaptés à une filière."""
     return _ENGINE.get_recommended_bac_for_field(field_cluster)
+=======
+def _average_feature_values(features: Dict[str, float], questions: List[str]) -> float:
+    values = [float(features.get(question, 0.0)) for question in questions]
+    if not values:
+        return 0.0
+    average = sum(values) / len(values)
+    return max(0.0, min(1.0, average))
+
+
+def build_profile_from_features(features: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+    """
+    Construit un profil d'orientation formaté à partir des features brutes.
+    """
+    domains = {
+        name: _average_feature_values(features, questions)
+        for name, questions in ORIENTATION_CONFIG.get("domains", {}).items()
+    }
+    skills = {
+        name: _average_feature_values(features, questions)
+        for name, questions in ORIENTATION_CONFIG.get("skills", {}).items()
+    }
+    return {
+        "domains": domains,
+        "skills": skills,
+    }
+
+
+def compute_profile(profile_or_features) -> Any:
+    """
+    Point d’entrée unique pour le moteur d'orientation.
+
+    Accepte soit un OrientationProfile (pour la génération du vecteur),
+    soit un dictionnaire de features (pour la génération de domaines/skills).
+    """
+    if isinstance(profile_or_features, OrientationProfile):
+        return _ENGINE.build_orientation_vector(profile_or_features)
+
+    if isinstance(profile_or_features, dict):
+        return build_profile_from_features(profile_or_features)
+
+    raise TypeError(
+        "compute_profile attend un OrientationProfile ou un dictionnaire de features."
+    )
+>>>>>>> 750cf4e (Mise à jour)

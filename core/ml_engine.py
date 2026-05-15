@@ -3,7 +3,9 @@ ML Engine - Moteur de scoring Machine Learning pour l'orientation
 Version 2.0 - Support du scoring vectoriel, clustering et prédictions avancées
 """
 
+import json
 import logging
+<<<<<<< HEAD
 import json
 import os
 from typing import Dict, List, Any, Optional, Tuple
@@ -11,10 +13,19 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
+=======
+import os
+import random
+from pathlib import Path
+from typing import Dict, List
+
+from config import ML_MODEL_TYPE
+>>>>>>> 750cf4e (Mise à jour)
 from models.profile import OrientationProfile
 
 logger = logging.getLogger("orientation.ml_engine")
 
+<<<<<<< HEAD
 
 # ============================================================================
 # CONSTANTES ET CONFIGURATION
@@ -556,3 +567,144 @@ if __name__ == "__main__":
             print(f"   {warning}")
     
     print("\n📊 Stats:", engine.get_stats())
+=======
+CONFIG_PATH = Path(__file__).resolve().parent.parent / "orientation_config.json"
+
+try:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        ORIENTATION_CONFIG = json.load(f)
+except Exception as exc:
+    logger.warning("Impossible de charger orientation_config.json pour ML: %s", exc)
+    ORIENTATION_CONFIG = {"domains": {}, "skills": {}}
+
+DOMAIN_NAMES = list(ORIENTATION_CONFIG.get("domains", {}).keys())
+SKILL_NAMES = list(ORIENTATION_CONFIG.get("skills", {}).keys())
+FEATURE_QUESTIONS = sorted(
+    {
+        question
+        for questions in ORIENTATION_CONFIG.get("domains", {}).values()
+        for question in questions
+    }
+    | {
+        question
+        for questions in ORIENTATION_CONFIG.get("skills", {}).values()
+        for question in questions
+    }
+)
+
+MODEL_TYPES = ("logistic", "random_forest", "xgboost")
+
+
+def _clamp(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _sigmoid(value: float) -> float:
+    return 1.0 / (1.0 + pow(2.718281828459045, -value))
+
+
+def _normalize(scores: Dict[str, float]) -> Dict[str, float]:
+    total = sum(scores.values())
+    if total <= 0:
+        return {key: 0.0 for key in scores}
+    return {key: round(value / total, 4) for key, value in scores.items()}
+
+
+def _average_feature_values(features: Dict[str, float], questions: List[str]) -> float:
+    values = [float(features.get(question, 0.0)) for question in questions]
+    if not values:
+        return 0.0
+    return _clamp(sum(values) / len(values))
+
+
+def _select_model_type() -> str:
+    if ML_MODEL_TYPE not in MODEL_TYPES:
+        logger.warning(
+            "Type de modèle ML invalide '%s', retour à 'logistic' par défaut.",
+            ML_MODEL_TYPE,
+        )
+        return "logistic"
+    return ML_MODEL_TYPE
+
+
+def _logistic_scores(features: Dict[str, float]) -> Dict[str, float]:
+    domains = {}
+    skills = {}
+    for name, questions in ORIENTATION_CONFIG.get("domains", {}).items():
+        raw = _average_feature_values(features, questions)
+        domains[name] = _clamp(_sigmoid((raw - 0.45) * 6.0))
+
+    for name, questions in ORIENTATION_CONFIG.get("skills", {}).items():
+        raw = _average_feature_values(features, questions)
+        skills[name] = _clamp(_sigmoid((raw - 0.45) * 6.5))
+
+    return {"domains": _normalize(domains), "skills": _normalize(skills)}
+
+
+def _random_forest_scores(features: Dict[str, float]) -> Dict[str, float]:
+    domains = {}
+    skills = {}
+    for name, questions in ORIENTATION_CONFIG.get("domains", {}).items():
+        values = [float(features.get(question, 0.0)) for question in questions]
+        raw = sum(values) / max(1, len(values))
+        high_count = sum(1 for value in values if value >= 0.6)
+        score = raw * 0.65 + (high_count / max(1, len(values))) * 0.35
+        domains[name] = _clamp(score)
+
+    for name, questions in ORIENTATION_CONFIG.get("skills", {}).items():
+        values = [float(features.get(question, 0.0)) for question in questions]
+        raw = sum(values) / max(1, len(values))
+        strong_feature = max(values) if values else 0.0
+        score = raw * 0.55 + strong_feature * 0.3 + (sum(v >= 0.7 for v in values) / max(1, len(values))) * 0.15
+        skills[name] = _clamp(score)
+
+    return {"domains": _normalize(domains), "skills": _normalize(skills)}
+
+
+def _xgboost_scores(features: Dict[str, float]) -> Dict[str, float]:
+    domains = {}
+    skills = {}
+    for name, questions in ORIENTATION_CONFIG.get("domains", {}).items():
+        values = [float(features.get(question, 0.0)) for question in questions]
+        raw = sum(values) / max(1, len(values))
+        boost = sum(min(1.0, v * 2.0) for v in values) / max(1, len(values))
+        score = raw * 0.45 + boost * 0.35 + (sum(v >= 0.75 for v in values) / max(1, len(values))) * 0.2
+        domains[name] = _clamp(score)
+
+    for name, questions in ORIENTATION_CONFIG.get("skills", {}).items():
+        values = [float(features.get(question, 0.0)) for question in questions]
+        raw = sum(values) / max(1, len(values))
+        momentum = sum(v * 0.5 for v in values) / max(1, len(values))
+        score = raw * 0.4 + momentum * 0.35 + (sum(v >= 0.8 for v in values) / max(1, len(values))) * 0.25
+        skills[name] = _clamp(score)
+
+    return {"domains": _normalize(domains), "skills": _normalize(skills)}
+
+
+def _compute_with_model(features: Dict[str, float], model_type: str) -> Dict[str, Dict[str, float]]:
+    if model_type == "random_forest":
+        return _random_forest_scores(features)
+    if model_type == "xgboost":
+        return _xgboost_scores(features)
+    return _logistic_scores(features)
+
+
+def compute_profile(features: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+    """
+    Génère un profil d'orientation à partir des features du quiz.
+
+    Le moteur ML classique produit une estimation des domaines et des compétences
+    en utilisant des variantes de modèles bien connus :
+    - Logistic Regression
+    - Random Forest
+    - XGBoost
+
+    Le choix du modèle est contrôlé par l'environnement ML_MODEL_TYPE.
+    """
+    logger.info("Calcul du profil ML [%s] avec %d features", _select_model_type(), len(features))
+
+    profile = _compute_with_model(features, _select_model_type())
+
+    logger.debug("Profil ML intermédiaire: %s", profile)
+    return profile
+>>>>>>> 750cf4e (Mise à jour)

@@ -11,6 +11,7 @@ SUPABASE_SERVICE_ROLE_KEY: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 # Moteur d'orientation
 # --------------------------------------------------
 ENGINE_MODE: str = os.getenv("ENGINE_MODE", "rule")  # "rule" | "ml"
+ML_MODEL_TYPE: str = os.getenv("ML_MODEL_TYPE", "logistic")  # "logistic" | "random_forest" | "xgboost"
 ENGINE_VERSION: str = os.getenv("ENGINE_VERSION", "v1")
 
 # --------------------------------------------------
@@ -60,6 +61,10 @@ def validate_config() -> None:
     # Orientation / ML
     if ORIENTATION_VECTOR_SIZE <= 0:
         raise RuntimeError("Configuration invalide : ORIENTATION_VECTOR_SIZE doit être supérieur à 0.")
+    if ENGINE_MODE == "ml" and ML_MODEL_TYPE not in ("logistic", "random_forest", "xgboost"):
+        raise RuntimeError(
+            "Configuration invalide : ML_MODEL_TYPE doit être 'logistic', 'random_forest' ou 'xgboost'."
+        )
 
     # Runtime
     if APP_ENV == "prod" and LOG_LEVEL == "debug":

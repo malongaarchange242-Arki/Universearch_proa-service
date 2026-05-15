@@ -4,12 +4,16 @@ Version 2.0 - Support du scoring hybride (rules + ML + vectoriel)
 """
 
 import logging
+<<<<<<< HEAD
 import time
 from typing import Dict, Any, Tuple, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from config import ENGINE_MODE
+=======
+from config import ENGINE_MODE, ML_MODEL_TYPE
+>>>>>>> 750cf4e (Mise à jour)
 from core import rule_engine, ml_engine
 from core.recommendations import compute_recommended_fields
 from models.proa import UserType, ProaComputeRequest
@@ -32,6 +36,7 @@ class ScoringResult:
 
 class Scorer:
     """
+<<<<<<< HEAD
     Moteur de scoring V2 avec support hybride
     
     Améliorations:
@@ -166,6 +171,18 @@ class Scorer:
         """
         logger.debug("Computing with rule engine")
         profile_dict = rule_engine.compute_profile(features)
+=======
+    try:
+        if ENGINE_MODE == "ml":
+            logger.info("Utilisation du moteur ML (%s) pour le scoring", ML_MODEL_TYPE)
+            profile_dict = ml_engine.compute_profile(features)
+            confidence = 0.75
+        else:
+            logger.info("Utilisation du moteur rule-based pour le scoring")
+            profile_dict = rule_engine.compute_profile(features)
+            confidence = 0.85
+
+>>>>>>> 750cf4e (Mise à jour)
         profile = OrientationProfile(**profile_dict)
         
         # Calcul de confiance basé sur la couverture
@@ -364,10 +381,17 @@ class Scorer:
         }
         logger.info("Stats reset")
 
+<<<<<<< HEAD
 
 # ============================================================================
 # SINGLETON ET FONCTION DE CONVENANCE
 # ============================================================================
+=======
+        logger.info(
+            "Profil calculé: %s | Confiance: %.2f", profile_dict, confidence
+        )
+        return profile, confidence
+>>>>>>> 750cf4e (Mise à jour)
 
 _global_scorer: Optional[Scorer] = None
 
