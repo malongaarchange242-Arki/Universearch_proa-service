@@ -466,3 +466,11 @@ if __name__ == "__main__":
     
     migrated = legacy.migrate_to_v2()
     print(f"\n✅ Legacy migration: {migrated.quiz_code}")
+
+
+# ============================================================================
+# ALIASES POUR COMPATIBILITÉ BACKWARD
+# ============================================================================
+
+# Alias pour compatibilité avec les imports existants
+QuizSubmission = QuizSubmissionRequest
