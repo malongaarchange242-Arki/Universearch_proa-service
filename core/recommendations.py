@@ -104,19 +104,19 @@ FIELD_CLUSTERS = {
         "comptabilité", "finance", "gestion d'entreprise", "marketing", "commerce international",
         "management", "administration des affaires", "banque", "assurance", "audit",
         "ressources humaines", "gestion des ressources humaines", "entrepreneuriat",
-        "commerce", "économie", "gestion financière", "logistique", "supply chain"
+        "commerce", "économie", "gestion financière"
     ],
-    "droit": [
-        "droit", "juridique", "justice", "pénal", "public", "privé", "sciences politiques",
-        "relations internationales", "diplomatie", "gouvernance", "affaires"
+    
+    # ⚡ ÉLECTRONIQUE & ÉLECTROTECHNIQUE
+    "électronique": [
+        "génie électrique", "électronique", "électrotechnique", "automatique",
+        "robotique", "systèmes embarqués", "télécommunications", "instrumentation"
     ],
-    "social": [
-        "communication", "sociologie", "psychologie", "éducation", "enseignement",
-        "sciences humaines", "anthropologie", "histoire", "géographie", "philosophie"
-    ],
-    "santé": [
-        "médecine", "pharmacie", "dentaire", "sciences infirmières", "kinésithérapie",
-        "sciences médicales", "biotechnologie médicale", "laboratoire", "imagerie médicale"
+    
+    # 🏗️ GÉNIE CIVIL & CONSTRUCTION
+    "génie_civil": [
+        "génie civil", "construction", "architecture", "urbanisme", "bâtiment",
+        "génie urbain", "aménagement du territoire"
     ],
     "sciences": [
         "mathématiques", "physique", "chimie", "biologie", "biochimie",

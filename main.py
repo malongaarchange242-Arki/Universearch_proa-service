@@ -87,3 +87,6 @@ async def get_quiz():
     if os.path.exists(quiz_path):
         return FileResponse(quiz_path, media_type="text/html")
     return {"error": "quiz.html not found"}
+
+
+
