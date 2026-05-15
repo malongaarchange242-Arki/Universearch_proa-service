@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 import logging
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import os
 import json
 import uuid  # 🎯 Pour générer session_id
@@ -549,6 +549,7 @@ def get_dynamic_questions(
     user_type: str = "all",
     count_per_dimension: int = 2,
     difficulty: int = 1,
+    bac_code: Optional[str] = None,
 ):
     """
     🎯 Récupère des questions aléatoires + équilibrées par session.
@@ -591,6 +592,7 @@ def get_dynamic_questions(
             user_type=user_type,
             count_per_dimension=count_per_dimension,
             difficulty=difficulty,
+            bac_code=bac_code,
         )
         
         if not questions:

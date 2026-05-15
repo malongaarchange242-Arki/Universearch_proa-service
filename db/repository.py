@@ -581,6 +581,7 @@ def get_random_questions_per_session(
     user_type: str = "all",
     count_per_dimension: int = 2,
     difficulty: int = 1,
+    bac_code: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     🎯 Récupère des questions aléatoires et équilibrées par dimension depuis la base de données.
@@ -644,6 +645,24 @@ def get_random_questions_per_session(
                 if error:
                     logger.warning(f"Erreur récupération questions: {error}")
                     return get_random_questions_simple(user_type=user_type, limit=15)
+
+                # Filtrer par bac si demandé
+                if bac_code and questions_data:
+                    filtered_questions = []
+                    for q in questions_data:
+                        bac_field = q.get("bac_compatible") or q.get("bac_code") or q.get("bac_codes")
+                        if not bac_field:
+                            filtered_questions.append(q)
+                            continue
+
+                        if isinstance(bac_field, list):
+                            if bac_code in bac_field:
+                                filtered_questions.append(q)
+                        elif isinstance(bac_field, str) and bac_code == bac_field:
+                            filtered_questions.append(q)
+
+                    questions_data = filtered_questions
+                    logger.info(f"Questions filtrées par bac {bac_code}: {len(questions_data)}")
 
                 # Créer un mapping id -> question pour accès rapide
                 questions_map = {q["id"]: q for q in questions_data} if questions_data else {}
