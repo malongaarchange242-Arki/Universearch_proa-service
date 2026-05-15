@@ -5,7 +5,7 @@ Version 2.0 - Support du scoring vectoriel, clustering et prédictions avancées
 
 import json
 import logging
-<<<<<<< HEAD
+
 import json
 import os
 from typing import Dict, List, Any, Optional, Tuple
@@ -13,19 +13,19 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
-=======
+
 import os
 import random
 from pathlib import Path
 from typing import Dict, List
 
 from config import ML_MODEL_TYPE
->>>>>>> 750cf4e (Mise à jour)
+
 from models.profile import OrientationProfile
 
 logger = logging.getLogger("orientation.ml_engine")
 
-<<<<<<< HEAD
+
 
 # ============================================================================
 # CONSTANTES ET CONFIGURATION
@@ -567,7 +567,7 @@ if __name__ == "__main__":
             print(f"   {warning}")
     
     print("\n📊 Stats:", engine.get_stats())
-=======
+
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "orientation_config.json"
 
 try:
@@ -707,4 +707,4 @@ def compute_profile(features: Dict[str, float]) -> Dict[str, Dict[str, float]]:
 
     logger.debug("Profil ML intermédiaire: %s", profile)
     return profile
->>>>>>> 750cf4e (Mise à jour)
+

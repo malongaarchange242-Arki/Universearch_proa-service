@@ -3,12 +3,12 @@
 import json
 import logging
 import os
-<<<<<<< HEAD
+
 from typing import Dict, List, Optional, Tuple
 
-=======
+
 from typing import Any, Dict, List
->>>>>>> 750cf4e (Mise à jour)
+
 from models.profile import OrientationProfile
 
 logger = logging.getLogger("orientation.rule_engine")
@@ -440,7 +440,6 @@ class RuleEngine:
 _ENGINE = RuleEngine()
 
 
-<<<<<<< HEAD
 def compute_profile(profile: OrientationProfile) -> List[float]:
     """Point d'entrée unique appelé par l'API."""
     return _ENGINE.build_orientation_vector(profile)
@@ -484,7 +483,7 @@ def filter_fields_by_bac(
 def get_recommended_bac_for_field(field_cluster: str) -> List[str]:
     """Suggère les bacs adaptés à une filière."""
     return _ENGINE.get_recommended_bac_for_field(field_cluster)
-=======
+
 def _average_feature_values(features: Dict[str, float], questions: List[str]) -> float:
     values = [float(features.get(question, 0.0)) for question in questions]
     if not values:
@@ -527,4 +526,4 @@ def compute_profile(profile_or_features) -> Any:
     raise TypeError(
         "compute_profile attend un OrientationProfile ou un dictionnaire de features."
     )
->>>>>>> 750cf4e (Mise à jour)
+
