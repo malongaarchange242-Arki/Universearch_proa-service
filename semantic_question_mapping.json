@@ -375,6 +375,120 @@
       "reverse_scale": true,
       "use_numeric_intensity": true
     }
+    ,
+
+    "q_social_interest": [
+      { "domain": "social", "weight": 1.0 },
+      { "domain": "communication", "weight": 0.8 },
+      { "domain": "teamwork", "weight": 0.6 }
+    ],
+
+    "q_stress_management": {
+      "default_domains": [
+        { "domain": "resilience", "weight": 1.0 },
+        { "domain": "adaptability", "weight": 0.8 },
+        { "domain": "leadership", "weight": 0.4 }
+      ],
+      "use_numeric_intensity": true
+    },
+
+    "q_prefer_environment": {
+      "answer_mappings": {
+        "indoor": [
+          { "domain": "analysis", "weight": 0.8 },
+          { "domain": "technical", "weight": 0.6 }
+        ],
+        "outdoor": [
+          { "domain": "adaptability", "weight": 0.7 },
+          { "domain": "creativity", "weight": 0.5 }
+        ],
+        "hybrid": [
+          { "domain": "adaptability", "weight": 0.9 },
+          { "domain": "organization", "weight": 0.5 }
+        ]
+      },
+      "default_domains": [
+        { "domain": "adaptability", "weight": 0.7 },
+        { "domain": "organization", "weight": 0.5 }
+      ],
+      "use_numeric_intensity": false
+    },
+
+    "q_decision_style": {
+      "answer_mappings": {
+        "analytical": [
+          { "domain": "analysis", "weight": 1.0 },
+          { "domain": "logic", "weight": 0.8 },
+          { "domain": "technical", "weight": 0.6 }
+        ],
+        "intuitive": [
+          { "domain": "creativity", "weight": 0.8 },
+          { "domain": "leadership", "weight": 0.6 },
+          { "domain": "entrepreneurship", "weight": 0.5 }
+        ],
+        "collaborative": [
+          { "domain": "teamwork", "weight": 1.0 },
+          { "domain": "communication", "weight": 0.8 },
+          { "domain": "leadership", "weight": 0.5 }
+        ],
+        "decisive": [
+          { "domain": "leadership", "weight": 1.0 },
+          { "domain": "management", "weight": 0.8 },
+          { "domain": "entrepreneurship", "weight": 0.6 }
+        ]
+      },
+      "default_domains": [
+        { "domain": "analysis", "weight": 0.7 },
+        { "domain": "leadership", "weight": 0.5 }
+      ]
+    },
+
+    "q_help_vs_profit": {
+      "answer_mappings": {
+        "help": [
+          { "domain": "social", "weight": 1.0 },
+          { "domain": "ethics", "weight": 0.8 },
+          { "domain": "communication", "weight": 0.6 },
+          { "domain": "teamwork", "weight": 0.5 }
+        ],
+        "profit": [
+          { "domain": "entrepreneurship", "weight": 1.0 },
+          { "domain": "finance", "weight": 0.8 },
+          { "domain": "management", "weight": 0.6 },
+          { "domain": "leadership", "weight": 0.5 }
+        ],
+        "balance": [
+          { "domain": "entrepreneurship", "weight": 0.7 },
+          { "domain": "social", "weight": 0.7 },
+          { "domain": "ethics", "weight": 0.6 },
+          { "domain": "management", "weight": 0.5 }
+        ],
+        "equilibre": [
+          { "domain": "entrepreneurship", "weight": 0.7 },
+          { "domain": "social", "weight": 0.7 },
+          { "domain": "ethics", "weight": 0.6 },
+          { "domain": "management", "weight": 0.5 }
+        ]
+      },
+      "score_mappings": {
+        "1": [
+          { "domain": "social", "weight": 1.0 },
+          { "domain": "ethics", "weight": 0.8 }
+        ],
+        "2": [
+          { "domain": "social", "weight": 0.6 },
+          { "domain": "entrepreneurship", "weight": 0.4 }
+        ],
+        "3": [
+          { "domain": "entrepreneurship", "weight": 0.6 },
+          { "domain": "social", "weight": 0.4 }
+        ],
+        "4": [
+          { "domain": "entrepreneurship", "weight": 1.0 },
+          { "domain": "finance", "weight": 0.8 }
+        ]
+      }
+    }
   },
 
   "dimensions_available": [
