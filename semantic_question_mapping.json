@@ -27,6 +27,8 @@
     "q_business_sense": ["entrepreneurship"],
     "q_research_explore": ["learning", "analysis"],
     "q_learning_speed": ["learning", "adaptability"],
+    "q_future_projection": ["ambition", "motivation", "learning"],
+    "q_confidence_choice": ["confidence", "decision", "leadership"],
     "q_manage_people": ["management", "leadership"],
     "q_innovation_new": ["innovation"],
     "q_communication_skill": ["communication"],
