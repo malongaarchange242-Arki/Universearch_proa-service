@@ -454,6 +454,10 @@ class QuizSubmission(BaseModel):
         default=None,
         description="Metadonnees facultatives de reponse (raw_value, selected_text, question_type, etc.)",
     )
+    quiz_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Metadonnees facultatives du quiz (total_questions, duration_ms, etc.)",
+    )
 
     @field_validator("responses", mode="before")
     @classmethod

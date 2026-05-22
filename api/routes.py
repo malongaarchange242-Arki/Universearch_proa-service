@@ -112,6 +112,27 @@ def _extract_bac_type_from_metadata(response_metadata: Dict[str, Dict[str, Any]]
     return None
 
 
+def _expected_question_count_for_confidence(payload: QuizSubmission) -> int:
+    """Resolve expected count for static and dynamic quiz submissions."""
+    metadata = payload.quiz_metadata if isinstance(payload.quiz_metadata, dict) else {}
+    total_questions = metadata.get("scored_questions") or metadata.get("total_questions")
+
+    if isinstance(total_questions, (int, float)) and total_questions > 0:
+        return int(total_questions)
+
+    response_keys = [str(key).lower() for key in payload.responses.keys()]
+    standard_codes = {f"q{i}" for i in range(1, 25)}
+    uses_semantic_codes = any(
+        key.startswith("q_") or (key.startswith("q") and key not in standard_codes)
+        for key in response_keys
+    )
+
+    if uses_semantic_codes:
+        return len(payload.responses)
+
+    return 24
+
+
 @router.post("/compute", status_code=201)
 def compute_orientation(payload: QuizSubmission):
     """
@@ -179,7 +200,11 @@ def compute_orientation(payload: QuizSubmission):
         vector = compute_profile(profile_obj)
 
         # 5️⃣ Calcul confiance AVANCÉE avec breakdown (✅ PHASE 1)
-        confidence_info = calculate_confidence(payload.responses, expected_question_count=24)
+        expected_question_count = _expected_question_count_for_confidence(payload)
+        confidence_info = calculate_confidence(
+            payload.responses,
+            expected_question_count=expected_question_count,
+        )
         confidence = confidence_info["confidence_score"]
         reliability_label = confidence_info["reliability_label"]
         confidence_breakdown = confidence_info["confidence_breakdown"]

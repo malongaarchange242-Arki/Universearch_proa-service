@@ -19,12 +19,14 @@
     "q_ethics_matter": ["ethics"],
     "q_adapt_change": ["adaptability"],
     "q_leadership_vision": ["leadership", "vision"],
+    "q_leadership_real": ["leadership", "teamwork", "management"],
     "q_analysis_deep": ["analysis"],
     "q_teamwork_prefer": ["teamwork"],
     "q_creativity_art": ["creativity"],
     "q_logic_puzzles": ["logic"],
     "q_business_sense": ["entrepreneurship"],
     "q_research_explore": ["learning", "analysis"],
+    "q_learning_speed": ["learning", "adaptability"],
     "q_manage_people": ["management", "leadership"],
     "q_innovation_new": ["innovation"],
     "q_communication_skill": ["communication"],
@@ -371,6 +373,16 @@
       "default_domains": [
         { "domain": "communication", "weight": 1.0 },
         { "domain": "teamwork", "weight": 0.9 }
+      ],
+      "reverse_scale": true,
+      "use_numeric_intensity": true
+    },
+
+    "q_contradiction_math": {
+      "default_domains": [
+        { "domain": "analysis", "weight": 1.0 },
+        { "domain": "technical", "weight": 0.8 },
+        { "domain": "learning", "weight": 0.5 }
       ],
       "reverse_scale": true,
       "use_numeric_intensity": true
