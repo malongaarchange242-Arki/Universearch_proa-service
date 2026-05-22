@@ -373,12 +373,12 @@ services:
 
 ```bash
 # Test production URL
-curl https://universearch-proa-service.onrender.com/health
+curl https://universearch-proa-service-weza.onrender.com/health
 
 # Expected: {"status": "ok"}
 
 # Test compute
-curl -X POST https://universearch-proa-service.onrender.com/orientation/compute \
+curl -X POST https://universearch-proa-service-weza.onrender.com/orientation/compute \
   -H "Content-Type: application/json" \
   -d '{"user_id": "prod-test@example.com", ...}'
 
@@ -546,7 +546,7 @@ import time
 while True:
     try:
         response = requests.get(
-            'https://universearch-proa-service.onrender.com/health',
+            'https://universearch-proa-service-weza.onrender.com/health',
             timeout=5
         )
         if response.status_code == 200:

@@ -56,7 +56,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 # Liste explicite des origines autorisées
 ALLOWED_ORIGINS = [
     "https://pora-frontend.onrender.com",
-    "https://universearch-proa-service.onrender.com",
+    "https://universearch-proa-service-weza.onrender.com",
     "https://universearch-pora-service.onrender.com",
     "http://localhost:5500",
     "http://localhost:3000",

@@ -16,7 +16,7 @@ info:
 servers:
   - url: http://localhost:8000
     description: Development
-  - url: https://universearch-proa-service.onrender.com
+  - url: https://universearch-proa-service-weza.onrender.com
     description: Production
 
 tags:
