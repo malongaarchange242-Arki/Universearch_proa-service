@@ -1,0 +1,733 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-05-25",
+  "description": "Règles spécifiques par série de bac. preferred_fields = boost fort, allowed_fields = autorisé normal, forbidden_fields = exclusion ou pénalité forte.",
+
+  "bac_rules": {
+    "F3": {
+      "name": "Électrotechnique",
+      "sector": "technical",
+      "preferred_fields": [
+        "electrotechnique",
+        "electrotechnique-automatisme",
+        "electrotechnique-electronique",
+        "genie-electrique-et-informatique-industrielle",
+        "automatisation-procedes-industriels",
+        "automatisme-informatique-industrielle",
+        "automatisme-instrumentation",
+        "genie-electrique-et-informatique-industrielle",
+        "installation-des-panneaux-solaires",
+        "photo-voltaique",
+        "genie-energetique"
+      ],
+      "allowed_fields": [
+        "genie-informatique",
+        "informatique-industrielle-maintenance",
+        "maintenance-industrielle",
+        "genie-industriel",
+        "mecantronique",
+        "electromecanique",
+        "genie-mecanique",
+        "genie-petrolier",
+        "raffinage-petrochimie",
+        "economie-petroliere",
+        "genie-civil",
+        "batiment-travaux-publics",
+        "maintenance-froid-industriel-menage"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "pharmacie",
+        "assistant-medical-generaliste",
+        "droit-des-affaires",
+        "droit-penal",
+        "droit-prive",
+        "droit-public",
+        "sciences-politiques",
+        "diplomatie-relations-internationales",
+        "lettres-langues-communication",
+        "arts-design-creatif",
+        "tourisme-hotellerie-restauration",
+        "agronomie",
+        "vanniers"
+      ]
+    },
+
+    "F2": {
+      "name": "Électronique",
+      "sector": "technical",
+      "preferred_fields": [
+        "genie-electronique-et-informatique",
+        "electrotechnique-electronique",
+        "automatisme-informatique-industrielle",
+        "automatisme-instrumentation",
+        "reseau-telecommunication",
+        "telecommunication-reseaux",
+        "systemes-reseaux-informatique",
+        "informatique-reseaux-et-telecommunications",
+        "cybersecurite-cryptographie",
+        "securite-systemes-informatiques"
+      ],
+      "allowed_fields": [
+        "genie-informatique",
+        "genie-logiciel",
+        "intelligence-artificielle",
+        "data-science",
+        "electrotechnique",
+        "genie-electrique-et-informatique-industrielle",
+        "maintenance-industrielle",
+        "genie-industriel",
+        "mecantronique"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "pharmacie",
+        "droit",
+        "lettres",
+        "tourisme-hotellerie-restauration",
+        "agronomie",
+        "genie-civil"
+      ]
+    },
+
+    "F1": {
+      "name": "Construction Mécanique",
+      "sector": "technical",
+      "preferred_fields": [
+        "genie-mecanique",
+        "conception-mecanique-innovation",
+        "modelisation-calcul-mecanique",
+        "electromecanique",
+        "mecantronique",
+        "maintenance-industrielle",
+        "genie-procedes-maintenance-industrielle"
+      ],
+      "allowed_fields": [
+        "genie-industriel",
+        "genie-civil",
+        "batiment-travaux-publics",
+        "genie-petrolier",
+        "genie-electrique-et-informatique-industrielle",
+        "electrotechnique"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "pharmacie",
+        "droit",
+        "lettres",
+        "communication",
+        "gestion-finance-comptabilite",
+        "agronomie"
+      ]
+    },
+
+    "F4": {
+      "name": "Génie Civil & Bâtiment",
+      "sector": "technical",
+      "preferred_fields": [
+        "genie-civil",
+        "architecture-urbanisme",
+        "architecture",
+        "batiment-travaux-publics",
+        "geometre-topographe",
+        "genie-geologique-hydrosystemes",
+        "mines-carrieres",
+        "dessin-assiste-par-ordinateur-dao"
+      ],
+      "allowed_fields": [
+        "genie-industriel",
+        "genie-electrique-et-informatique-industrielle",
+        "logistique-supply-chain",
+        "gestion-transport-logistique",
+        "gestion-financiere",
+        "comptabilite-finances",
+        "management-entreprise"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "pharmacie",
+        "droit-penal",
+        "lettres-modernes",
+        "arts-plastiques",
+        "informatique-pure"
+      ]
+    },
+
+    "E": {
+      "name": "Mathématiques Techniques & Technologie",
+      "sector": "technical",
+      "preferred_fields": [
+        "genie-informatique",
+        "genie-logiciel",
+        "data-science",
+        "intelligence-artificielle",
+        "cybersecurite",
+        "genie-electrique-et-informatique-industrielle",
+        "genie-mecanique",
+        "genie-civil",
+        "genie-industriel"
+      ],
+      "allowed_fields": [
+        "electrotechnique",
+        "automatisme",
+        "raffinage-petrochimie",
+        "economie-petroliere",
+        "gestion-financiere",
+        "finance-comptabilite"
+      ],
+      "forbidden_fields": [
+        "lettres-modernes",
+        "philosophie",
+        "sociologie",
+        "journalisme"
+      ]
+    },
+
+    "C": {
+      "name": "Mathématiques & Sciences Physiques",
+      "sector": "science",
+      "preferred_fields": [
+        "genie-informatique",
+        "data-science",
+        "intelligence-artificielle",
+        "cybersecurite",
+        "genie-civil",
+        "genie-mecanique",
+        "genie-electrique-et-informatique-industrielle",
+        "genie-petrolier",
+        "raffinage-petrochimie",
+        "physique-chimie"
+      ],
+      "allowed_fields": [
+        "medecine",
+        "pharmacie",
+        "assistant-medical-generaliste",
+        "genie-procedes-genie-chimie",
+        "economie-petroliere",
+        "gestion-financiere",
+        "architecture"
+      ],
+      "forbidden_fields": [
+        "lettres-modernes",
+        "philosophie",
+        "sociologie",
+        "arts-plastiques",
+        "journalisme",
+        "droit"
+      ]
+    },
+
+    "D": {
+      "name": "Sciences Naturelles & Biologie",
+      "sector": "science",
+      "preferred_fields": [
+        "medecine",
+        "pharmacie",
+        "assistant-medical-generaliste",
+        "genie-procedes-genie-chimie",
+        "genie-procedes-alimentaires",
+        "technologies-agroalimentaire",
+        "biologie",
+        "biochimie"
+      ],
+      "allowed_fields": [
+        "genie-informatique",
+        "data-science",
+        "genie-civil",
+        "genie-mecanique",
+        "genie-petrolier",
+        "agronomie",
+        "gestion-environnement"
+      ],
+      "forbidden_fields": [
+        "genie-electrique",
+        "electrotechnique",
+        "droit",
+        "lettres-modernes",
+        "arts-plastiques"
+      ]
+    },
+
+    "A": {
+      "name": "Lettres, Langues & Sciences Humaines",
+      "sector": "humanities",
+      "preferred_fields": [
+        "lettres-modernes",
+        "philosophie",
+        "sociologie",
+        "psychologie",
+        "histoire-geographie",
+        "anthropologie",
+        "langues-et-affaires",
+        "anglais",
+        "francais",
+        "espagnol",
+        "chinois",
+        "interprete-traducteur"
+      ],
+      "allowed_fields": [
+        "droit",
+        "sciences-politiques",
+        "diplomatie-relations-internationales",
+        "journalisme",
+        "communication-digitale",
+        "marketing",
+        "gestion-ressources-humaines",
+        "secretariat-de-direction",
+        "hotellerie",
+        "infographie",
+        "arts-plastiques"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "data-science",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "pharmacie",
+        "genie-petrolier"
+      ]
+    },
+
+    "G1": {
+      "name": "Comptabilité",
+      "sector": "business",
+      "preferred_fields": [
+        "comptabilite-finances",
+        "comptabilite-gestion-entreprise",
+        "comptabilite-finance-gestion-entreprise",
+        "comptabilite-gestion-financiere",
+        "audit-comptabilite-controle-gestion",
+        "finance-comptabilite",
+        "gestion-financiere",
+        "assistant-comptable"
+      ],
+      "allowed_fields": [
+        "banque-finances-assurances",
+        "gestion-ressources-humaines",
+        "management-entreprise",
+        "marketing",
+        "commerce-international",
+        "secretariat-de-direction"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "pharmacie",
+        "lettres-modernes"
+      ]
+    },
+
+    "G2": {
+      "name": "Gestion Commerciale",
+      "sector": "business",
+      "preferred_fields": [
+        "marketing",
+        "gestion-commerciale-marketing",
+        "marketing-et-action-commerciale",
+        "commerce-international",
+        "vente",
+        "strategie-commerciale",
+        "business-trade-marketing"
+      ],
+      "allowed_fields": [
+        "comptabilite-finances",
+        "gestion-ressources-humaines",
+        "logistique-supply-chain",
+        "transport-logistique",
+        "tourisme-hotellerie",
+        "communication-digitale"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "lettres-modernes"
+      ]
+    },
+
+    "G3": {
+      "name": "Gestion des Entreprises",
+      "sector": "business",
+      "preferred_fields": [
+        "management-entreprise",
+        "entrepreneuriat-management-projets",
+        "gestion-ressources-humaines",
+        "management-des-ressources-humaines",
+        "finance-comptabilite",
+        "audit-comptabilite-controle-gestion"
+      ],
+      "allowed_fields": [
+        "marketing",
+        "commerce-international",
+        "droit-des-affaires",
+        "logistique-supply-chain",
+        "communication-digitale"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "lettres-modernes"
+      ]
+    },
+
+    "H1": {
+      "name": "Informatique de Gestion",
+      "sector": "informatics",
+      "preferred_fields": [
+        "genie-informatique",
+        "genie-logiciel",
+        "systemes-information-gestion",
+        "base-donnees",
+        "data-science",
+        "developpement-informatique"
+      ],
+      "allowed_fields": [
+        "reseau-telecommunication",
+        "cybersecurite",
+        "marketing-digital",
+        "gestion-financiere",
+        "comptabilite-finances"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "lettres-modernes"
+      ]
+    },
+
+    "H2": {
+      "name": "Communication Administrative",
+      "sector": "business",
+      "preferred_fields": [
+        "communication-digitale",
+        "marketing-communication",
+        "journalisme",
+        "relations-publiques",
+        "secretariat-de-direction",
+        "assistant-de-direction"
+      ],
+      "allowed_fields": [
+        "gestion-ressources-humaines",
+        "management-entreprise",
+        "droit",
+        "langues-et-affaires",
+        "hotellerie"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine"
+      ]
+    },
+
+    "H3": {
+      "name": "Action Commerciale",
+      "sector": "business",
+      "preferred_fields": [
+        "marketing-et-action-commerciale",
+        "vente",
+        "commerce-international",
+        "strategie-commerciale",
+        "business-trade-marketing"
+      ],
+      "allowed_fields": [
+        "communication-digitale",
+        "gestion-ressources-humaines",
+        "logistique-supply-chain",
+        "tourisme-hotellerie"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "lettres-modernes"
+      ]
+    },
+
+    "H4": {
+      "name": "Gestion Logistique",
+      "sector": "business",
+      "preferred_fields": [
+        "logistique-supply-chain",
+        "transport-logistique",
+        "gestion-transport-logistique",
+        "commerce-international-transit",
+        "gestion-des-stocks",
+        "agent-logisticien"
+      ],
+      "allowed_fields": [
+        "marketing",
+        "gestion-financiere",
+        "management-entreprise",
+        "commerce-international"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "medecine",
+        "lettres-modernes"
+      ]
+    },
+
+    "BG": {
+      "name": "Banque & Gestion",
+      "sector": "business",
+      "preferred_fields": [
+        "banque-finances-assurances",
+        "finance-comptabilite",
+        "gestion-financiere",
+        "assurance-finances-banque",
+        "actuariat"
+      ],
+      "allowed_fields": [
+        "comptabilite-finances",
+        "management-entreprise",
+        "commerce-international",
+        "droit-des-affaires"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "medecine",
+        "lettres-modernes"
+      ]
+    },
+
+    "R1": {
+      "name": "Production Végétale",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "agronomie",
+        "production-vegetale",
+        "genie-procedes-alimentaires",
+        "technologies-agroalimentaire"
+      ],
+      "allowed_fields": [
+        "gestion-environnement",
+        "genie-rural",
+        "commerce-agricole"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine",
+        "droit",
+        "lettres-modernes"
+      ]
+    },
+
+    "R2": {
+      "name": "Production Animale",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "production-animale",
+        "sante-animale",
+        "agronomie",
+        "genie-procedes-alimentaires"
+      ],
+      "allowed_fields": [
+        "gestion-environnement",
+        "commerce-agricole"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine-humaine",
+        "droit",
+        "lettres-modernes"
+      ]
+    },
+
+    "R3": {
+      "name": "Santé Animale",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "sante-animale",
+        "veterinaire",
+        "production-animale"
+      ],
+      "allowed_fields": [
+        "agronomie",
+        "genie-procedes-alimentaires"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "droit",
+        "lettres-modernes"
+      ]
+    },
+
+    "R4": {
+      "name": "Machiniste Agricole",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "mecanique-agricole",
+        "conduite-d-engins-agricole",
+        "maintenance-materiel-agricole"
+      ],
+      "allowed_fields": [
+        "genie-mecanique",
+        "genie-industriel",
+        "agronomie"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "droit",
+        "lettres-modernes",
+        "gestion-finance"
+      ]
+    },
+
+    "R5": {
+      "name": "Économie & Gestion Coopératives",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "gestion-cooperative",
+        "economie-rurale",
+        "agrobusiness",
+        "gestion-entreprise"
+      ],
+      "allowed_fields": [
+        "comptabilite-finances",
+        "marketing",
+        "commerce-international"
+      ],
+      "forbidden_fields": [
+        "genie-informatique",
+        "genie-civil",
+        "genie-mecanique",
+        "electrotechnique",
+        "medecine"
+      ]
+    },
+
+    "R6": {
+      "name": "Génie Rural",
+      "sector": "agriculture",
+      "preferred_fields": [
+        "genie-rural",
+        "amenagement-territoire",
+        "genie-civil-rural",
+        "hydraulique-agricole"
+      ],
+      "allowed_fields": [
+        "genie-civil",
+        "agronomie",
+        "gestion-environnement"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "droit",
+        "lettres-modernes",
+        "finance-pure"
+      ]
+    },
+
+    "P2": {
+      "name": "BTP & Travaux Publics",
+      "sector": "vocational",
+      "preferred_fields": [
+        "batiment-travaux-publics",
+        "genie-civil",
+        "macconnerie",
+        "plomberie",
+        "electricite-batiment",
+        "peintre-batiment"
+      ],
+      "allowed_fields": [
+        "architecture",
+        "geometre-topographe",
+        "mines-carrieres"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "droit",
+        "lettres-modernes",
+        "informatique-pure"
+      ]
+    },
+
+    "P6": {
+      "name": "Techniques Industrielles",
+      "sector": "vocational",
+      "preferred_fields": [
+        "maintenance-industrielle",
+        "electrotechnique",
+        "soudure",
+        "chaudronnerie",
+        "usinage"
+      ],
+      "allowed_fields": [
+        "genie-mecanique",
+        "genie-industriel",
+        "genie-electrique"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "droit",
+        "lettres-modernes",
+        "gestion-finance"
+      ]
+    },
+
+    "P7": {
+      "name": "Métiers Pratiques & Professionnels",
+      "sector": "vocational",
+      "preferred_fields": [
+        "coiffure",
+        "esthetique",
+        "couture",
+        "patisserie",
+        "cuisine",
+        "hotellerie",
+        "menuiserie",
+        "vannerie"
+      ],
+      "allowed_fields": [
+        "arts-design",
+        "tourisme-hotellerie",
+        "gestion-petite-entreprise"
+      ],
+      "forbidden_fields": [
+        "medecine",
+        "genie-informatique",
+        "genie-civil",
+        "droit",
+        "finance"
+      ]
+    }
+  },
+
+  "scoring_rules": {
+    "preferred_bonus": 0.35,
+    "allowed_neutral": 0.00,
+    "forbidden_penalty": -0.50,
+    "use_strict_forbidden_exclusion": false,
+    "description": "preferred_fields reçoivent +0.35 au score final, forbidden_fields reçoivent -0.50 (mais ne sont pas exclues si use_strict_forbidden_exclusion = false)"
+  }
+}

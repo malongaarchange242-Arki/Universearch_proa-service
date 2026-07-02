@@ -1,4 +1,6 @@
 {
+  "version": "2.0",
+  "last_updated": "2026-05-25",
   "domain_threshold": 2,
   "max_score": 4,
   "normalize_vector": true,
@@ -42,157 +44,226 @@
       "description": "Lettres, langues, philosophie et sciences humaines",
       "sector": "humanities",
       "icon": "📚",
-      "color": "#f59e0b"
+      "color": "#f59e0b",
+      "preferred_clusters": ["lettres_sciences_humaines", "droit_sciences_juridiques"],
+      "allowed_clusters": ["communication_medias", "arts_design", "tourisme_hotellerie", "management_rh_administration"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "genie_petrolier_chimie"]
     },
     "C": {
       "description": "Mathématiques et sciences physiques",
       "sector": "science",
       "icon": "🔬",
-      "color": "#06b6d4"
+      "color": "#06b6d4",
+      "preferred_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "genie_petrolier_chimie"],
+      "allowed_clusters": ["sciences_sante_medicale", "sciences_naturelles_environnement", "genie_mecanique_industriel", "gestion_finance_comptabilite"],
+      "forbidden_clusters": ["lettres_sciences_humaines", "arts_design_creatif", "communication_medias", "tourisme_hotellerie_restauration"]
     },
     "D": {
       "description": "Sciences naturelles et biologie",
       "sector": "science",
       "icon": "🧬",
-      "color": "#10b981"
+      "color": "#10b981",
+      "preferred_clusters": ["sciences_sante_medicale", "sciences_naturelles_environnement", "agriculture_elevage_agro"],
+      "allowed_clusters": ["informatique_numerique", "genie_civil_btp", "genie_petrolier_chimie", "gestion_finance_comptabilite"],
+      "forbidden_clusters": ["genie_electrique_energie", "lettres_sciences_humaines", "arts_design_creatif", "tourisme_hotellerie_restauration"]
     },
     "E": {
       "description": "Mathématiques techniques et technologie",
       "sector": "technical",
       "icon": "⚡",
-      "color": "#f43f5e"
+      "color": "#f43f5e",
+      "preferred_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "genie_mecanique_industriel"],
+      "allowed_clusters": ["genie_petrolier_chimie", "gestion_finance_comptabilite", "logistique_transport_douane"],
+      "forbidden_clusters": ["lettres_sciences_humaines", "arts_design_creatif", "communication_medias", "tourisme_hotellerie_restauration", "agriculture_elevage_agro"]
     },
     "F1": {
       "description": "Construction mécanique",
       "sector": "technical",
       "icon": "🔧",
-      "color": "#8b5cf6"
+      "color": "#8b5cf6",
+      "preferred_clusters": ["genie_mecanique_industriel"],
+      "allowed_clusters": ["genie_civil_btp", "genie_electrique_energie", "genie_petrolier_chimie", "formation_professionnelle_metiers"],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite", "agriculture_elevage_agro"]
     },
     "F2": {
       "description": "Electronique",
       "sector": "technical",
       "icon": "🔌",
-      "color": "#8b5cf6"
+      "color": "#8b5cf6",
+      "preferred_clusters": ["genie_electrique_energie", "informatique_numerique"],
+      "allowed_clusters": ["genie_mecanique_industriel", "genie_petrolier_chimie", "formation_professionnelle_metiers"],
+      "forbidden_clusters": ["sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite", "agriculture_elevage_agro", "tourisme_hotellerie_restauration"]
     },
     "F3": {
       "description": "Electrotechnique",
       "sector": "technical",
       "icon": "⚡",
-      "color": "#8b5cf6"
+      "color": "#8b5cf6",
+      "preferred_clusters": ["genie_electrique_energie"],
+      "allowed_clusters": ["informatique_numerique", "genie_mecanique_industriel", "genie_petrolier_chimie", "formation_professionnelle_metiers"],
+      "forbidden_clusters": ["sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite", "agriculture_elevage_agro", "tourisme_hotellerie_restauration", "arts_design_creatif"]
     },
     "F4": {
       "description": "Génie civil et bâtiment",
       "sector": "technical",
       "icon": "🏗️",
-      "color": "#8b5cf6"
-    },
-    "H1": {
-      "description": "Informatique de gestion",
-      "sector": "informatics",
-      "icon": "💻",
-      "color": "#7c3aed"
-    },
-    "H2": {
-      "description": "Communication administrative",
-      "sector": "business",
-      "icon": "📋",
-      "color": "#7c3aed"
-    },
-    "H3": {
-      "description": "Action commerciale",
-      "sector": "business",
-      "icon": "🤝",
-      "color": "#7c3aed"
-    },
-    "H4": {
-      "description": "Gestion logistique",
-      "sector": "business",
-      "icon": "🚚",
-      "color": "#7c3aed"
-    },
-    "H5": {
-      "description": "Techniques administratives",
-      "sector": "business",
-      "icon": "📊",
-      "color": "#7c3aed"
+      "color": "#8b5cf6",
+      "preferred_clusters": ["genie_civil_btp"],
+      "allowed_clusters": ["genie_mecanique_industriel", "logistique_transport_douane", "gestion_finance_comptabilite", "formation_professionnelle_metiers"],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "agriculture_elevage_agro"]
     },
     "G1": {
       "description": "Comptabilité",
       "sector": "business",
       "icon": "🧮",
-      "color": "#10b981"
+      "color": "#10b981",
+      "preferred_clusters": ["gestion_finance_comptabilite"],
+      "allowed_clusters": ["management_rh_administration", "commerce_marketing_vente", "logistique_transport_douane"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
     },
     "G2": {
       "description": "Gestion commerciale",
       "sector": "business",
       "icon": "💼",
-      "color": "#10b981"
+      "color": "#10b981",
+      "preferred_clusters": ["commerce_marketing_vente"],
+      "allowed_clusters": ["gestion_finance_comptabilite", "management_rh_administration", "logistique_transport_douane", "tourisme_hotellerie_restauration"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
     },
     "G3": {
       "description": "Gestion des entreprises",
       "sector": "business",
       "icon": "🏢",
-      "color": "#10b981"
+      "color": "#10b981",
+      "preferred_clusters": ["management_rh_administration", "gestion_finance_comptabilite"],
+      "allowed_clusters": ["commerce_marketing_vente", "droit_sciences_juridiques", "logistique_transport_douane"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
+    },
+    "H1": {
+      "description": "Informatique de gestion",
+      "sector": "informatics",
+      "icon": "💻",
+      "color": "#7c3aed",
+      "preferred_clusters": ["informatique_numerique"],
+      "allowed_clusters": ["gestion_finance_comptabilite", "commerce_marketing_vente"],
+      "forbidden_clusters": ["sciences_sante_medicale", "genie_civil_btp", "genie_electrique_energie", "lettres_sciences_humaines", "agriculture_elevage_agro"]
+    },
+    "H2": {
+      "description": "Communication administrative",
+      "sector": "business",
+      "icon": "📋",
+      "color": "#7c3aed",
+      "preferred_clusters": ["communication_medias", "management_rh_administration"],
+      "allowed_clusters": ["droit_sciences_juridiques", "lettres_sciences_humaines", "commerce_marketing_vente"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "agriculture_elevage_agro"]
+    },
+    "H3": {
+      "description": "Action commerciale",
+      "sector": "business",
+      "icon": "🤝",
+      "color": "#7c3aed",
+      "preferred_clusters": ["commerce_marketing_vente"],
+      "allowed_clusters": ["communication_medias", "logistique_transport_douane", "tourisme_hotellerie_restauration"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
+    },
+    "H4": {
+      "description": "Gestion logistique",
+      "sector": "business",
+      "icon": "🚚",
+      "color": "#7c3aed",
+      "preferred_clusters": ["logistique_transport_douane"],
+      "allowed_clusters": ["commerce_marketing_vente", "gestion_finance_comptabilite"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
     },
     "BG": {
       "description": "Banque et gestion",
       "sector": "business",
       "icon": "🏦",
-      "color": "#10b981"
+      "color": "#10b981",
+      "preferred_clusters": ["gestion_finance_comptabilite"],
+      "allowed_clusters": ["management_rh_administration", "commerce_marketing_vente", "droit_sciences_juridiques"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "lettres_sciences_humaines", "agriculture_elevage_agro"]
     },
     "R1": {
       "description": "Production végétale",
       "sector": "agriculture",
       "icon": "🌱",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "sciences_naturelles_environnement"],
+      "allowed_clusters": ["gestion_finance_comptabilite"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines"]
     },
     "R2": {
       "description": "Production animale",
       "sector": "agriculture",
       "icon": "🐄",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "sciences_naturelles_environnement"],
+      "allowed_clusters": ["gestion_finance_comptabilite"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines"]
     },
     "R3": {
       "description": "Santé animale",
       "sector": "agriculture",
       "icon": "🐾",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "sciences_sante_medicale"],
+      "allowed_clusters": ["sciences_naturelles_environnement"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "droit_sciences_juridiques", "lettres_sciences_humaines"]
     },
     "R4": {
       "description": "Machiniste agricole",
       "sector": "agriculture",
       "icon": "🚜",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "formation_professionnelle_metiers"],
+      "allowed_clusters": ["genie_mecanique_industriel"],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite"]
     },
     "R5": {
       "description": "Économie et gestion coopératives",
       "sector": "agriculture",
       "icon": "🌾",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "gestion_finance_comptabilite"],
+      "allowed_clusters": ["management_rh_administration"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines"]
     },
     "R6": {
       "description": "Génie rural",
       "sector": "agriculture",
       "icon": "🏞️",
-      "color": "#22c55e"
+      "color": "#22c55e",
+      "preferred_clusters": ["agriculture_elevage_agro", "genie_civil_btp"],
+      "allowed_clusters": ["sciences_naturelles_environnement"],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines"]
     },
     "P2": {
       "description": "BTP et travaux publics",
       "sector": "vocational",
       "icon": "👷",
-      "color": "#64748b"
+      "color": "#64748b",
+      "preferred_clusters": ["genie_civil_btp", "formation_professionnelle_metiers"],
+      "allowed_clusters": [],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite", "commerce_marketing_vente"]
     },
     "P6": {
       "description": "Techniques industrielles",
       "sector": "vocational",
       "icon": "🏭",
-      "color": "#64748b"
+      "color": "#64748b",
+      "preferred_clusters": ["genie_mecanique_industriel", "formation_professionnelle_metiers"],
+      "allowed_clusters": ["genie_electrique_energie"],
+      "forbidden_clusters": ["informatique_numerique", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite"]
     },
     "P7": {
       "description": "Métiers pratiques et professionnels",
       "sector": "vocational",
       "icon": "🛠️",
-      "color": "#64748b"
+      "color": "#64748b",
+      "preferred_clusters": ["formation_professionnelle_metiers"],
+      "allowed_clusters": ["arts_design_creatif", "tourisme_hotellerie_restauration"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "droit_sciences_juridiques", "lettres_sciences_humaines", "gestion_finance_comptabilite"]
     }
   },
 
@@ -200,9 +271,9 @@
     "humanities": {
       "label": "Lettres & Sciences Humaines",
       "icon": "📚",
-      "allowed_clusters": ["droit", "social", "arts_design", "business"],
+      "allowed_clusters": ["droit_sciences_juridiques", "lettres_sciences_humaines", "arts_design_creatif", "management_rh_administration", "communication_medias"],
       "allowed_domains": ["communication", "leadership", "creativity", "ethics"],
-      "forbidden_clusters": ["informatique", "engineering", "sciences"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "genie_mecanique_industriel", "sciences_sante_medicale"],
       "forbidden_domains": ["computer_science", "technical"],
       "cluster_bonus": 0.15,
       "cluster_malus": -0.20
@@ -210,9 +281,9 @@
     "science": {
       "label": "Sciences",
       "icon": "🔬",
-      "allowed_clusters": ["sciences", "sante", "informatique", "engineering", "geoscience", "agriculture", "business"],
+      "allowed_clusters": ["sciences_naturelles_environnement", "sciences_sante_medicale", "informatique_numerique", "genie_civil_btp", "genie_petrolier_chimie", "agriculture_elevage_agro", "gestion_finance_comptabilite"],
       "allowed_domains": ["analysis", "logic", "computer_science", "technical"],
-      "forbidden_clusters": ["droit", "arts_design"],
+      "forbidden_clusters": ["droit_sciences_juridiques", "arts_design_creatif"],
       "forbidden_domains": [],
       "cluster_bonus": 0.10,
       "cluster_malus": -0.15
@@ -220,9 +291,9 @@
     "technical": {
       "label": "Technique & Industrie",
       "icon": "⚡",
-      "allowed_clusters": ["engineering", "informatique", "sciences", "geoscience", "agriculture"],
+      "allowed_clusters": ["genie_civil_btp", "genie_electrique_energie", "genie_mecanique_industriel", "informatique_numerique", "sciences_naturelles_environnement", "genie_petrolier_chimie", "agriculture_elevage_agro"],
       "allowed_domains": ["technical", "engineering", "analysis"],
-      "forbidden_clusters": ["droit", "social", "arts_design"],
+      "forbidden_clusters": ["droit_sciences_juridiques", "lettres_sciences_humaines", "arts_design_creatif", "communication_medias", "tourisme_hotellerie_restauration"],
       "forbidden_domains": ["communication", "creativity"],
       "cluster_bonus": 0.15,
       "cluster_malus": -0.25
@@ -230,9 +301,9 @@
     "informatics": {
       "label": "Informatique",
       "icon": "💻",
-      "allowed_clusters": ["informatique", "engineering", "business"],
+      "allowed_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "gestion_finance_comptabilite"],
       "allowed_domains": ["computer_science", "logic", "technical", "analysis"],
-      "forbidden_clusters": ["droit", "sante", "agriculture"],
+      "forbidden_clusters": ["droit_sciences_juridiques", "sciences_sante_medicale", "agriculture_elevage_agro", "lettres_sciences_humaines"],
       "forbidden_domains": [],
       "cluster_bonus": 0.20,
       "cluster_malus": -0.30
@@ -240,9 +311,9 @@
     "business": {
       "label": "Gestion & Commerce",
       "icon": "💼",
-      "allowed_clusters": ["business", "social", "droit"],
+      "allowed_clusters": ["gestion_finance_comptabilite", "management_rh_administration", "commerce_marketing_vente", "logistique_transport_douane", "droit_sciences_juridiques", "communication_medias"],
       "allowed_domains": ["business", "management", "finance", "organization", "communication"],
-      "forbidden_clusters": ["informatique", "engineering", "sciences", "sante", "agriculture"],
+      "forbidden_clusters": ["informatique_numerique", "genie_civil_btp", "genie_electrique_energie", "sciences_sante_medicale", "agriculture_elevage_agro"],
       "forbidden_domains": ["computer_science", "technical"],
       "cluster_bonus": 0.15,
       "cluster_malus": -0.25
@@ -250,9 +321,9 @@
     "agriculture": {
       "label": "Agriculture & Élevage",
       "icon": "🌾",
-      "allowed_clusters": ["agriculture", "geoscience", "sciences"],
+      "allowed_clusters": ["agriculture_elevage_agro", "sciences_naturelles_environnement", "gestion_finance_comptabilite"],
       "allowed_domains": ["analysis", "technical"],
-      "forbidden_clusters": ["informatique", "droit", "arts_design"],
+      "forbidden_clusters": ["informatique_numerique", "droit_sciences_juridiques", "arts_design_creatif", "genie_electrique_energie"],
       "forbidden_domains": ["computer_science", "creativity"],
       "cluster_bonus": 0.20,
       "cluster_malus": -0.30
@@ -260,9 +331,9 @@
     "vocational": {
       "label": "Professionnel",
       "icon": "🛠️",
-      "allowed_clusters": ["engineering", "geoscience", "agriculture"],
+      "allowed_clusters": ["genie_civil_btp", "genie_mecanique_industriel", "formation_professionnelle_metiers", "agriculture_elevage_agro"],
       "allowed_domains": ["technical"],
-      "forbidden_clusters": ["droit", "social", "sante"],
+      "forbidden_clusters": ["droit_sciences_juridiques", "lettres_sciences_humaines", "sciences_sante_medicale", "informatique_numerique"],
       "forbidden_domains": ["communication", "leadership", "creativity"],
       "cluster_bonus": 0.15,
       "cluster_malus": -0.20
@@ -272,8 +343,10 @@
   "bac_compatibility_rules": {
     "strict_forbidden": false,
     "apply_penalty_instead_of_exclusion": true,
-    "penalty_weight": 0.30,
-    "bonus_weight": 0.15,
-    "minimum_score_threshold": 0.10
+    "preferred_bonus": 0.35,
+    "penalty_weight": 0.50,
+    "bonus_weight": 0.35,
+    "minimum_score_threshold": 0.10,
+    "description": "preferred_clusters reçoivent un bonus de +35%, forbidden_clusters une pénalité de -50%"
   }
 }

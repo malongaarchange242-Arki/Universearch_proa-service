@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from supabase import Client
 
-from core.utils import normalize_responses, get_bac_track
+from core.utils import normalize_responses, normalize_response_code, get_bac_track
 
 logger = logging.getLogger("orientation.feature_engineering")
 
@@ -60,6 +60,21 @@ def _load_orientation_config() -> Dict[str, Any]:
         return {"max_score": 5, "domains": {}, "skills": {}}  # Support 1-5 maintenant
 
 
+def _normalize_semantic_mapping_keys(mapping: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize JSON semantic mapping keys so comparisons are stable."""
+    if not isinstance(mapping, dict):
+        return {}
+
+    normalized_mapping = {}
+    for raw_key, value in mapping.items():
+        normalized_key = normalize_response_code(raw_key)
+        normalized_mapping[normalized_key] = value
+        if normalized_key != raw_key:
+            logger.debug(f"Normalized mapping key: {repr(raw_key)} -> {repr(normalized_key)}")
+
+    return normalized_mapping
+
+
 def _load_semantic_mapping() -> Dict[str, Any]:
     """Load semantic question code to domain mapping"""
     try:
@@ -68,9 +83,21 @@ def _load_semantic_mapping() -> Dict[str, Any]:
             "..",
             "semantic_question_mapping.json",
         )
+        mapping_path = os.path.abspath(mapping_path)
         with open(mapping_path, "r", encoding="utf-8") as f:
             mapping = json.load(f)
-        logger.info(f"✅ Loaded semantic_question_mapping.json: {len(mapping.get('semantic_to_domain_mapping', {}))} mappings")
+
+        semantic_to_domain = mapping.get("semantic_to_domain_mapping", {})
+        normalized_mapping = _normalize_semantic_mapping_keys(semantic_to_domain)
+        mapping["semantic_to_domain_mapping"] = normalized_mapping
+
+        logger.info(
+            f"✅ Loaded semantic_question_mapping.json from {mapping_path}: "
+            f"{len(normalized_mapping)} mappings"
+        )
+        logger.debug("=== MAPPING KEYS ===")
+        for key in normalized_mapping.keys():
+            logger.debug(repr(key))
         return mapping
     except Exception as e:
         logger.warning(f"⚠️ Failed to load semantic_question_mapping.json: {e}")
@@ -165,6 +192,14 @@ def convert_semantic_to_domain_mapping(
     matched_questions = []
     unmatched_questions = []
     
+    logger.info("=== RESPONSE KEYS ===")
+    for key in responses.keys():
+        logger.info(repr(key))
+
+    logger.info("=== MAPPING KEYS ===")
+    for key in semantic_to_domain.keys():
+        logger.info(repr(key))
+
     for question_code in responses.keys():
         if question_code in semantic_to_domain:
             mapping[question_code] = semantic_to_domain[question_code]
@@ -176,7 +211,7 @@ def convert_semantic_to_domain_mapping(
     logger.info(f"🔄 Semantic code conversion:")
     logger.info(f"   Matched: {len(matched_questions)}/{len(responses)} ({match_rate:.0f}%)")
     if unmatched_questions:
-        logger.warning(f"   Unmatched codes: {unmatched_questions[:5]}")
+        logger.warning(f"   Unmatched codes: {unmatched_questions}")
     
     return mapping
 

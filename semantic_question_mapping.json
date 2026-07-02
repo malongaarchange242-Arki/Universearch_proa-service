@@ -1,3 +1,4 @@
+
 {
   "comment": "Mapping of semantic question codes to domains. Used by dynamic /questions/dynamic endpoint.",
   "version": "1.1",

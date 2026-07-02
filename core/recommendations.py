@@ -2,6 +2,10 @@
 Feature Engineering - Moteur de recommandations d'orientation
 Version 2.0 - Améliorée avec scoring vectoriel dimensionnel et cache intelligent
 """
+"""
+Feature Engineering - Moteur de recommandations d'orientation
+Version 3.0 - Corrigée avec compatibilité BAC renforcée et clusters alignés
+"""
 
 import json
 import math
@@ -21,9 +25,9 @@ from config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 # Cache TTL en secondes
 CACHE_TTL_SECONDS = 3600  # 1 heure
-_FILIERES_CACHE: Optional[tuple] = None  # (timestamp, data)
+_FILIERES_CACHE: Optional[list] = None
 _CACHE_TIMESTAMP: Optional[datetime] = None
-
+_BAC_SPECIFIC_RULES_CACHE: Optional[Dict] = None
 
 # Dimensions du scoring vectoriel
 DIMENSIONS = [
@@ -37,10 +41,46 @@ DIMENSIONS = [
     "expertise",
 ]
 
-# Poids pour le scoring hybride
-PROFILE_SCORE_WEIGHT = 0.7
-BAC_SCORE_WEIGHT = 0.3
-MIN_SCORE_THRESHOLD = 0.12
+# Poids pour le scoring hybride (CORRIGÉS)
+PROFILE_SCORE_WEIGHT = 0.5      # ↓ baissé de 0.7
+BAC_SCORE_WEIGHT = 0.5          # ↑ augmenté de 0.3
+MIN_SCORE_THRESHOLD = 0.25      # ↑ augmenté de 0.12
+
+# Pénalités et bonus pour règles spécifiques
+PREFERRED_BONUS = 0.35          # Bonus pour preferred_fields
+FORBIDDEN_PENALTY = -0.50       # Pénalité pour forbidden_fields
+
+
+# ============================================================================
+# FONCTIONS DE CHARGEMENT DES RÈGLES BAC SPÉCIFIQUES
+# ============================================================================
+
+def _load_bac_specific_rules() -> Dict:
+    """Charge les règles spécifiques par série de bac depuis bac_specific_rules.json."""
+    global _BAC_SPECIFIC_RULES_CACHE
+    
+    if _BAC_SPECIFIC_RULES_CACHE is not None:
+        return _BAC_SPECIFIC_RULES_CACHE
+    
+    rules_path = os.path.join(os.path.dirname(__file__), "..", "bac_specific_rules.json")
+    try:
+        with open(rules_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            _BAC_SPECIFIC_RULES_CACHE = config.get("bac_rules", {})
+            print(f"[PROA] Chargé {len(_BAC_SPECIFIC_RULES_CACHE)} règles BAC spécifiques")
+            return _BAC_SPECIFIC_RULES_CACHE
+    except Exception as e:
+        print(f"[PROA] Erreur chargement bac_specific_rules.json: {e}")
+        _BAC_SPECIFIC_RULES_CACHE = {}
+        return _BAC_SPECIFIC_RULES_CACHE
+
+
+def _get_bac_specific_rules(bac_code: str) -> Optional[Dict]:
+    """Récupère les règles spécifiques pour une série de bac."""
+    if not bac_code:
+        return None
+    rules = _load_bac_specific_rules()
+    return rules.get(bac_code.upper().strip())
 
 
 # ============================================================================
@@ -83,132 +123,126 @@ def _normalize_vector(vector: Dict[str, float]) -> Dict[str, float]:
 
 
 # ============================================================================
-# CLUSTERS ET MAPPINGS (optimisés)
+# CLUSTERS ET MAPPINGS (ALIGNÉS AVEC academic_clusters.json)
 # ============================================================================
 
 FIELD_CLUSTERS = {
-    "informatique": [
+    "informatique_numerique": [
         "génie logiciel", "développement informatique", "informatique", "informatique de gestion",
         "intelligence artificielle", "data science", "big data", "analyse de données",
         "cybersécurité", "sécurité informatique", "réseaux informatiques", "systèmes d'information",
         "développement web", "développement mobile", "programmation", "bases de données",
-        "machine learning", "deep learning", "cloud computing", "devops"
+        "machine learning", "deep learning", "cloud computing", "devops", "ia"
     ],
-    "engineering": [
+    "genie_electrique_energie": [
         "génie électrique", "électronique", "électrotechnique", "automatique",
         "robotique", "systèmes embarqués", "télécommunications", "instrumentation",
+        "automatisme", "maintenance industrielle", "installation panneaux solaires",
+        "photo-voltaïque", "énergie renouvelable"
+    ],
+    "genie_mecanique_industriel": [
+        "génie mécanique", "mécatronique", "conception mécanique", "construction mécanique",
+        "productique", "fabrication mécanique", "electromecanique"
+    ],
+    "genie_civil_btp": [
         "génie civil", "construction", "architecture", "urbanisme", "bâtiment",
-        "génie mécanique", "mécatronique", "maintenance industrielle"
+        "travaux publics", "géomètre", "topographe", "matériaux de construction"
     ],
-    "business": [
-        "comptabilité", "finance", "gestion d'entreprise", "marketing", "commerce international",
-        "management", "administration des affaires", "banque", "assurance", "audit",
-        "ressources humaines", "gestion des ressources humaines", "entrepreneuriat",
-        "commerce", "économie", "gestion financière"
+    "gestion_finance_comptabilite": [
+        "comptabilité", "finance", "gestion d'entreprise", "audit", "contrôle de gestion",
+        "banque", "assurance", "actuariat", "gestion financière", "comptabilité de gestion"
     ],
-    
-    # ⚡ ÉLECTRONIQUE & ÉLECTROTECHNIQUE
-    "électronique": [
-        "génie électrique", "électronique", "électrotechnique", "automatique",
-        "robotique", "systèmes embarqués", "télécommunications", "instrumentation"
+    "commerce_marketing_vente": [
+        "marketing", "commerce international", "vente", "action commerciale",
+        "business trade", "e-commerce", "digital marketing", "relation client"
     ],
-    
-    # 🏗️ GÉNIE CIVIL & CONSTRUCTION
-    "génie_civil": [
-        "génie civil", "construction", "architecture", "urbanisme", "bâtiment",
-        "génie urbain", "aménagement du territoire"
+    "management_rh_administration": [
+        "management", "ressources humaines", "administration", "gestion des ressources humaines",
+        "entrepreneuriat", "management des projets", "organisation", "gestion publique"
     ],
-    "sciences": [
-        "mathématiques", "physique", "chimie", "biologie", "biochimie",
-        "génie chimique", "génie biologique", "recherche scientifique", "statistiques"
+    "sciences_sante_medicale": [
+        "médecine", "pharmacie", "soins infirmiers", "biologie médicale", "santé publique",
+        "odontostomatologie", "assistant médical"
     ],
-    "geoscience": [
-        "géologie", "géophysique", "hydrogéologie", "mines", "environnement",
-        "cartographie", "topographie", "géotechnique", "hydrologie", "océanographie"
+    "sciences_naturelles_environnement": [
+        "biologie", "chimie", "géologie", "environnement", "biochimie", "géophysique",
+        "géosciences", "hydrogéologie", "écologie"
     ],
-    "arts_design": [
-        "design graphique", "design industriel", "arts plastiques", "communication visuelle",
-        "architecture d'intérieur", "mode", "photographie", "design numérique", "multimédia"
+    "agriculture_elevage_agro": [
+        "agronomie", "agriculture", "production végétale", "production animale", 
+        "santé animale", "génie rural", "agroalimentaire", "machinisme agricole"
     ],
-    "agriculture": [
-        "agronomie", "agriculture", "agroalimentaire", "génie agricole", "foresterie",
-        "pêche", "aquaculture", "viticulture", "œnologie"
+    "droit_sciences_juridiques": [
+        "droit", "sciences politiques", "relations internationales", "diplomatie",
+        "droit des affaires", "droit pénal", "droit privé", "droit public"
+    ],
+    "lettres_langues_communication": [
+        "lettres", "langues", "philosophie", "sociologie", "psychologie", "histoire",
+        "géographie", "anthropologie", "journalisme", "communication", "traduction"
+    ],
+    "arts_design_creatif": [
+        "design", "art", "créativité", "infographie", "mode", "photographie",
+        "architecture intérieur", "arts plastiques"
+    ],
+    "tourisme_hotellerie_restauration": [
+        "hôtellerie", "tourisme", "restauration", "événementiel", "cuisine"
+    ],
+    "logistique_transport_douane": [
+        "logistique", "transport", "supply chain", "douane", "transit", "commerce international",
+        "gestion des stocks", "shipping", "freight"
+    ],
+    "genie_petrolier_chimie": [
+        "génie pétrolier", "raffinage", "pétrochimie", "forage", "production pétrolière",
+        "économie pétrolière"
+    ],
+    "formation_professionnelle_metiers": [
+        "menuisier", "plombier", "électricien bâtiment", "soudure", "chaudronnerie",
+        "peintre industriel", "coiffure", "esthétique", "pâtisserie"
     ],
 }
 
 FIELD_CLUSTER_SYNONYMS = {
-    "informatique": [
-        "informatique", "programmation", "logiciel", "code", "developer", "développement",
-        "data", "machine learning", "ia", "intelligence artificielle", "cybersécurité",
-        "sécurité informatique", "réseaux", "base de données", "cloud", "devops"
+    "informatique_numerique": [
+        "informatique", "programmation", "logiciel", "data", "ia", "cyber", "réseau"
     ],
-    "engineering": [
-        "génie", "ingénierie", "engineering", "électrique", "électronique", "électrotechnique",
-        "robotique", "automatique", "mécanique", "civil", "construction", "industrie"
+    "genie_electrique_energie": [
+        "électrique", "électronique", "électrotechnique", "automatique", "robotique"
     ],
-    "business": [
-        "business", "marketing", "commerce", "finance", "gestion", "management",
-        "entrepreneuriat", "banque", "assurance", "audit", "comptabilité", "logistique"
+    "genie_mecanique_industriel": [
+        "mécanique", "mécatronique", "construction mécanique", "maintenance"
     ],
-    "droit": [
-        "droit", "juridique", "justice", "avocat", "notaire", "magistrat", "loi", "réglementation"
+    "genie_civil_btp": [
+        "civil", "btp", "construction", "architecture", "bâtiment"
     ],
-    "social": [
-        "social", "communication", "relationnel", "éducation", "enseignement", "psychologie",
-        "sociologie", "humanitaire", "service", "communauté"
+    "gestion_finance_comptabilite": [
+        "comptabilité", "finance", "gestion", "audit", "banque", "assurance"
     ],
-    "santé": [
-        "santé", "médical", "médecine", "pharmacie", "infirmier", "clinique", "hospitalier"
+    "commerce_marketing_vente": [
+        "marketing", "commerce", "vente", "business"
     ],
-    "sciences": [
-        "science", "recherche", "mathématique", "physique", "chimie", "biologie", "laboratoire"
+    "management_rh_administration": [
+        "management", "rh", "ressources humaines", "administration"
     ],
-    "geoscience": [
-        "géologie", "géophysique", "mine", "environnement", "terre", "ressources naturelles"
+    "sciences_sante_medicale": [
+        "médecine", "santé", "pharmacie", "infirmier", "clinique"
     ],
-    "arts_design": [
-        "design", "art", "création", "graphisme", "architecture", "mode", "photographie"
-    ],
-    "agriculture": [
-        "agriculture", "agronomie", "agroalimentaire", "forêt", "pêche", "viticulture"
+    "droit_sciences_juridiques": [
+        "droit", "juridique", "justice", "avocat"
     ],
 }
 
 CLUSTER_KEYWORDS = {
-    "informatique": [
-        "informatique", "logiciel", "développement", "programmation", "data", "ia",
-        "cyber", "réseau", "telecom", "système", "numérique", "web", "mobile", "cloud"
-    ],
-    "engineering": [
-        "génie", "électrique", "électronique", "mécanique", "civil", "btp", "construction",
-        "robotique", "automatisme", "industrie", "production", "maintenance"
-    ],
-    "business": [
-        "business", "gestion", "finance", "marketing", "commerce", "management",
-        "comptabilité", "audit", "logistique", "rh", "ressources humaines", "économie"
-    ],
-    "droit": [
-        "droit", "juridique", "justice", "pénal", "affaires", "international", "public"
-    ],
-    "social": [
-        "social", "communication", "éducation", "enseignement", "psychologie", "sociologie"
-    ],
-    "santé": [
-        "santé", "médecine", "pharmacie", "infirmier", "clinique", "hospitalier", "soin"
-    ],
-    "sciences": [
-        "science", "mathématiques", "physique", "chimie", "biologie", "recherche"
-    ],
-    "geoscience": [
-        "géologie", "mine", "environnement", "terre", "ressources", "cartographie"
-    ],
-    "arts_design": [
-        "design", "art", "création", "graphisme", "architecture", "mode", "photographie"
-    ],
-    "agriculture": [
-        "agriculture", "agronomie", "agro", "forêt", "pêche", "viticulture"
-    ],
+    "informatique_numerique": ["informatique", "logiciel", "data", "ia", "cyber", "réseau"],
+    "genie_electrique_energie": ["électrique", "électronique", "automatique", "robotique"],
+    "genie_mecanique_industriel": ["mécanique", "mécatronique", "maintenance"],
+    "genie_civil_btp": ["civil", "btp", "construction", "architecture"],
+    "gestion_finance_comptabilite": ["compta", "finance", "gestion", "audit"],
+    "commerce_marketing_vente": ["marketing", "commerce", "vente"],
+    "management_rh_administration": ["management", "rh", "ressources humaines"],
+    "sciences_sante_medicale": ["médecine", "santé", "pharmacie"],
+    "droit_sciences_juridiques": ["droit", "juridique", "justice"],
 }
+
 
 # ============================================================================
 # DIMENSIONS ET VECTEURS
@@ -252,7 +286,7 @@ PROFILE_DIMENSION_SEEDS = {
 
 FIELD_DIMENSION_SEEDS = {
     "tech": [
-        "digital", "numérique", "informatique", "logiciel", "software", "ia", "ia",
+        "digital", "numérique", "informatique", "logiciel", "software", "ia",
         "intelligence artificielle", "machine learning", "data", "cybersécurité",
         "cloud", "réseaux", "programmation", "web", "mobile", "robotique", "automatisation"
     ],
@@ -302,49 +336,94 @@ PROFILE_EXACT_DIMENSION_WEIGHTS = {
     "droit": {"social": 0.55, "expertise": 0.55, "impact": 0.25},
 }
 
+
 # ============================================================================
-# BAC CONGOLAIS - COMPATIBILITÉ
+# BAC CONGOLAIS - COMPATIBILITÉ (RENFORCÉE)
 # ============================================================================
 
+# Matrice de compatibilité avec les nouveaux clusters
 BAC_TRACK_COMPATIBILITY = {
     "technical": {
         "clusters": {
-            "engineering": 1.0, "informatique": 0.72, "sciences": 0.62,
-            "geoscience": 0.78, "agriculture": 0.52, "sante": 0.28,
-            "business": 0.18, "droit": 0.05, "social": 0.12, "arts_design": 0.1
+            "genie_electrique_energie": 1.0,
+            "genie_mecanique_industriel": 0.85,
+            "genie_civil_btp": 0.60,
+            "genie_petrolier_chimie": 0.70,
+            "informatique_numerique": 0.35,      # ↓ baissé de 0.72
+            "formation_professionnelle_metiers": 0.80,
+            "sciences_naturelles_environnement": 0.40,
+            "agriculture_elevage_agro": 0.45,
+            "logistique_transport_douane": 0.30,
+            "gestion_finance_comptabilite": 0.15,
+            "commerce_marketing_vente": 0.12,
+            "management_rh_administration": 0.10,
+            "sciences_sante_medicale": 0.05,
+            "droit_sciences_juridiques": 0.05,
+            "lettres_langues_communication": 0.05,
+            "arts_design_creatif": 0.05,
+            "tourisme_hotellerie_restauration": 0.05,
         },
     },
     "science": {
         "clusters": {
-            "informatique": 0.88, "engineering": 0.9, "sciences": 1.0,
-            "geoscience": 0.86, "agriculture": 0.6, "sante": 0.92,
-            "business": 0.18, "droit": 0.12, "social": 0.18, "arts_design": 0.12
+            "informatique_numerique": 0.85,
+            "genie_civil_btp": 0.80,
+            "genie_petrolier_chimie": 0.85,
+            "sciences_sante_medicale": 0.95,
+            "sciences_naturelles_environnement": 0.95,
+            "agriculture_elevage_agro": 0.70,
+            "genie_electrique_energie": 0.60,
+            "genie_mecanique_industriel": 0.65,
+            "gestion_finance_comptabilite": 0.20,
+            "business": 0.15,
         },
     },
     "informatics": {
         "clusters": {
-            "informatique": 1.0, "engineering": 0.56, "sciences": 0.48,
-            "geoscience": 0.22, "agriculture": 0.18, "sante": 0.18,
-            "business": 0.16, "droit": 0.08, "social": 0.1, "arts_design": 0.12
+            "informatique_numerique": 1.0,
+            "genie_electrique_energie": 0.50,
+            "genie_mecanique_industriel": 0.40,
+            "gestion_finance_comptabilite": 0.25,
+            "commerce_marketing_vente": 0.20,
+            "sciences_sante_medicale": 0.10,
+            "droit_sciences_juridiques": 0.08,
         },
     },
     "business": {
         "clusters": {
-            "business": 1.0, "droit": 0.4, "social": 0.58, "informatique": 0.22,
-            "engineering": 0.12, "sciences": 0.14, "geoscience": 0.08,
-            "agriculture": 0.14, "sante": 0.1, "arts_design": 0.26
+            "gestion_finance_comptabilite": 1.0,
+            "commerce_marketing_vente": 0.95,
+            "management_rh_administration": 0.90,
+            "logistique_transport_douane": 0.70,
+            "droit_sciences_juridiques": 0.60,
+            "informatique_numerique": 0.30,
+            "tourisme_hotellerie_restauration": 0.50,
+            "genie_civil_btp": 0.10,
+            "genie_electrique_energie": 0.05,
         },
     },
     "humanities": {
         "clusters": {
-            "droit": 1.0, "social": 0.94, "arts_design": 0.42, "business": 0.34,
-            "informatique": 0.12, "engineering": 0.08, "sciences": 0.12
+            "lettres_langues_communication": 1.0,
+            "droit_sciences_juridiques": 0.90,
+            "arts_design_creatif": 0.70,
+            "tourisme_hotellerie_restauration": 0.60,
+            "management_rh_administration": 0.55,
+            "commerce_marketing_vente": 0.45,
+            "gestion_finance_comptabilite": 0.35,
+            "informatique_numerique": 0.10,
+            "sciences_sante_medicale": 0.08,
         },
     },
     "vocational": {
         "clusters": {
-            "engineering": 0.96, "geoscience": 0.62, "agriculture": 0.46,
-            "informatique": 0.34, "sciences": 0.18, "sante": 0.14, "business": 0.08
+            "formation_professionnelle_metiers": 1.0,
+            "genie_civil_btp": 0.85,
+            "genie_mecanique_industriel": 0.80,
+            "genie_electrique_energie": 0.75,
+            "agriculture_elevage_agro": 0.60,
+            "tourisme_hotellerie_restauration": 0.55,
+            "arts_design_creatif": 0.50,
         },
     },
 }
@@ -357,6 +436,7 @@ BAC_TRACK_KEYWORD_HINTS = {
     "business": {"comptabilite": 1.0, "gestion": 0.96, "management": 0.92, "finance": 0.88},
     "vocational": {"maintenance": 1.0, "btp": 1.0, "construction": 0.96},
 }
+
 
 # ============================================================================
 # FONCTIONS DE CHARGEMENT DES DONNÉES AVEC CACHE
@@ -414,12 +494,9 @@ def _build_local_filiere_fallback() -> List[Dict[str, Any]]:
 
 
 def _fetch_filieres_from_db() -> List[Dict[str, Any]]:
-    """
-    Récupère les filières depuis Supabase avec cache intelligent.
-    """
+    """Récupère les filières depuis Supabase avec cache intelligent."""
     global _FILIERES_CACHE, _CACHE_TIMESTAMP
     
-    # Vérifier le cache
     if _FILIERES_CACHE is not None and _CACHE_TIMESTAMP is not None:
         cache_age = (datetime.utcnow() - _CACHE_TIMESTAMP).total_seconds()
         if cache_age < CACHE_TTL_SECONDS:
@@ -479,7 +556,6 @@ def _extract_keywords_from_profile(profile: Dict[str, Any]) -> List[tuple[str, f
             if value > 0:
                 keywords.append((normalized_key, float(value)))
 
-    # Déduplication
     deduped: dict[str, float] = {}
     for k, v in keywords:
         if v > 0.0:
@@ -504,12 +580,10 @@ def _build_profile_vector(profile: Dict[str, Any]) -> Dict[str, float]:
     for term, value in inputs:
         normalized_term = _normalize_match_text(term)
 
-        # Poids exacts
         exact_weights = PROFILE_EXACT_DIMENSION_WEIGHTS.get(normalized_term)
         if exact_weights:
             _apply_dimension_weights(raw_vector, exact_weights, value)
 
-        # Poids par dimension
         for dim, seeds in PROFILE_DIMENSION_SEEDS.items():
             if any(_normalize_match_text(seed) in normalized_term for seed in seeds):
                 raw_vector[dim] += value
@@ -523,26 +597,24 @@ def _build_field_vector(filiere: Dict[str, Any]) -> Dict[str, float]:
     filiere_name = filiere.get("nom", "")
     text = _normalize_match_text(f"{filiere_name} {filiere.get('description', '')}")
 
-    # Poids par dimension
     for dim, seeds in FIELD_DIMENSION_SEEDS.items():
         for seed in seeds:
             if _normalize_match_text(seed) in text:
                 raw_vector[dim] += 1.0
 
-    # Fallback basé sur le cluster
     if sum(raw_vector.values()) <= 0:
         cluster = _get_filiere_cluster(filiere_name)
         cluster_fallback = {
-            "informatique": {"tech": 1.0, "expertise": 0.4},
-            "engineering": {"tech": 0.7, "expertise": 0.35, "impact": 0.1},
-            "business": {"business": 1.0, "international": 0.3},
-            "droit": {"social": 0.7, "expertise": 0.5, "impact": 0.2},
-            "social": {"social": 1.0, "impact": 0.3},
-            "arts_design": {"creativity": 0.8, "flexibility": 0.25},
-            "sciences": {"expertise": 0.8, "tech": 0.2},
-            "geoscience": {"impact": 0.55, "expertise": 0.35},
-            "agriculture": {"impact": 0.55, "expertise": 0.35},
-            "sante": {"impact": 1.0, "expertise": 0.3},
+            "informatique_numerique": {"tech": 1.0, "expertise": 0.4},
+            "genie_electrique_energie": {"tech": 0.8, "expertise": 0.3, "impact": 0.1},
+            "genie_mecanique_industriel": {"tech": 0.75, "expertise": 0.35},
+            "genie_civil_btp": {"tech": 0.7, "expertise": 0.3, "impact": 0.15},
+            "gestion_finance_comptabilite": {"business": 1.0, "expertise": 0.3},
+            "commerce_marketing_vente": {"business": 0.9, "social": 0.2},
+            "management_rh_administration": {"business": 0.7, "social": 0.3},
+            "sciences_sante_medicale": {"impact": 1.0, "expertise": 0.4},
+            "droit_sciences_juridiques": {"social": 0.6, "expertise": 0.5, "impact": 0.2},
+            "lettres_langues_communication": {"social": 0.8, "creativity": 0.3},
         }
         fallback = cluster_fallback.get(cluster, {"flexibility": 0.6, "expertise": 0.4})
         for dim, value in fallback.items():
@@ -578,18 +650,15 @@ def _get_filiere_cluster(filiere_name: str) -> str:
     """Détermine le cluster d'une filière avec cache."""
     filiere_lower = _normalize_match_text(filiere_name)
     
-    # Recherche dans les clusters
     for cluster_name, filieres in FIELD_CLUSTERS.items():
         for cluster_filiere in filieres:
             if cluster_filiere in filiere_lower or filiere_lower in cluster_filiere:
                 return cluster_name
     
-    # Recherche par synonymes
     for cluster_name, synonyms in FIELD_CLUSTER_SYNONYMS.items():
         if any(syn in filiere_lower for syn in synonyms):
             return cluster_name
     
-    # Recherche par mots-clés
     for cluster_name, keywords in CLUSTER_KEYWORDS.items():
         if any(keyword in filiere_lower for keyword in keywords):
             return cluster_name
@@ -630,7 +699,7 @@ def _detect_dominant_cluster(keywords: List[tuple[str, float]]) -> Optional[str]
 
 
 # ============================================================================
-# FONCTIONS BAC CONGOLAIS
+# FONCTIONS BAC CONGOLAIS (AMÉLIORÉES)
 # ============================================================================
 
 def _extract_bac_type(profile: Dict[str, Any]) -> Optional[str]:
@@ -677,32 +746,42 @@ def _classify_bac_track(bac_type: Optional[str]) -> Optional[str]:
 
 
 def _compute_bac_compatibility_score(bac_type: Optional[str], filiere: Dict[str, Any]) -> Optional[float]:
-    """Calcule le score de compatibilité bac/filière."""
+    """
+    Calcule le score de compatibilité bac/filière.
+    Version améliorée avec règles spécifiques prioritaires.
+    """
+    if not bac_type:
+        return None
+    
+    # PRIORITÉ 1: Règles spécifiques par série
+    specific_rules = _get_bac_specific_rules(bac_type)
+    if specific_rules:
+        field_name = filiere.get("nom", "")
+        preferred_fields = specific_rules.get("preferred_fields", [])
+        allowed_fields = specific_rules.get("allowed_fields", [])
+        forbidden_fields = specific_rules.get("forbidden_fields", [])
+        
+        if field_name in forbidden_fields:
+            return 0.0  # Totalement incompatible
+        if field_name in preferred_fields:
+            return 1.0  # Parfaitement compatible
+        if field_name in allowed_fields:
+            return 0.7  # Acceptable
+    
+    # PRIORITÉ 2: Règles par track (fallback)
     track = _classify_bac_track(bac_type)
     if not track:
         return None
 
     rules = BAC_TRACK_COMPATIBILITY.get(track, {})
     cluster = _get_filiere_cluster(filiere.get("nom", ""))
-    filiere_text = _normalize_match_text(f"{filiere.get('nom', '')} {filiere.get('description', '')}")
-    
-    signals: List[float] = []
     
     # Score par cluster
     cluster_score = rules.get("clusters", {}).get(cluster, 0.0)
     if cluster_score > 0:
-        signals.append(cluster_score)
+        return cluster_score
     
-    # Score par mots-clés
-    keyword_hints = BAC_TRACK_KEYWORD_HINTS.get(track, {})
-    for keyword, weight in keyword_hints.items():
-        if keyword in filiere_text:
-            signals.append(weight)
-    
-    if not signals:
-        return None
-    
-    return min(1.0, max(0.0, sum(signals) / len(signals)))
+    return 0.3  # Score neutre par défaut
 
 
 # ============================================================================
@@ -759,14 +838,12 @@ def _select_coherent_recommendations(
     results = sorted(results, key=lambda x: x.get("score", 0), reverse=True)
     selected = []
     
-    # Priorité au cluster décidé
     if decision_cluster:
         primary = [r for r in results if r.get("cluster") == decision_cluster]
         for item in primary[:top_n]:
             if len(selected) < top_n and item not in selected:
                 selected.append(item)
     
-    # Compléter avec d'autres clusters
     for item in results:
         if len(selected) >= top_n:
             break
@@ -813,7 +890,6 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
     Returns:
         Dictionnaire avec recommended_fields, field_scores, insight, etc.
     """
-    # Étape 1: Récupérer les filières
     filieres = _fetch_filieres_from_db()
     if not filieres:
         return {
@@ -825,14 +901,12 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
             "bac_track": None
         }
     
-    # Étape 2: Extraire les informations du profil
     profile_keywords = _extract_keywords_from_profile(profile)
     profile_vector = _build_profile_vector(profile)
     bac_type = _extract_bac_type(profile)
     bac_track = _classify_bac_track(bac_type)
     dominant_cluster = _detect_dominant_cluster(profile_keywords)
     
-    # Étape 3: Préparer les candidats
     candidates = []
     for filiere in filieres:
         field_vector = _build_field_vector(filiere)
@@ -843,11 +917,9 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
             "cluster": cluster,
         })
     
-    # Étape 4: Calculer les poids des clusters
     cluster_counts = Counter(c["cluster"] for c in candidates)
     cluster_weights = _build_cluster_frequency_weights(cluster_counts, len(candidates))
     
-    # Étape 5: Calculer les scores
     results = []
     for candidate in candidates:
         filiere = candidate["filiere"]
@@ -857,17 +929,21 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
             filiere, profile_vector, field_vector, cluster_weights, dominant_cluster
         )
         
-        # Intégration du score bac
+        # Intégration du score bac (NOUVEAU: priorité aux règles spécifiques)
         bac_score = _compute_bac_compatibility_score(bac_type, filiere)
         if bac_score is not None:
-            final_score = min(1.0, max(0.0, score * PROFILE_SCORE_WEIGHT + bac_score * BAC_SCORE_WEIGHT))
+            # Pénaliser plus fortement les scores bas
+            if bac_score < 0.3:
+                final_score = score * bac_score  # Pénalisation forte
+            else:
+                final_score = score * PROFILE_SCORE_WEIGHT + bac_score * BAC_SCORE_WEIGHT
+            final_score = min(1.0, max(0.0, final_score))
         else:
             final_score = score
         
-        # Générer la raison
         reason_parts = [f"{dim} ({contrib:.0%})" for dim, contrib in contributions[:3] if contrib > 0]
         reason = " + ".join(reason_parts) if reason_parts else "Profil adapté"
-        if bac_score and bac_type:
+        if bac_score is not None and bac_type:
             reason += f" | Bac {bac_type.upper()}: {bac_score:.0%}"
         
         results.append({
@@ -880,7 +956,6 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
             "distance": round(distance, 4),
         })
     
-    # Étape 6: Filtrer et trier
     filtered = [r for r in results if r["score"] >= MIN_SCORE_THRESHOLD]
     filtered.sort(key=lambda x: x["score"], reverse=True)
     
@@ -888,17 +963,14 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
         filtered = results
         filtered.sort(key=lambda x: x["score"], reverse=True)
     
-    # Étape 7: Sélection finale
     final = _select_coherent_recommendations(filtered, top_n, dominant_cluster)
     
-    # Étape 8: Garantir le nombre de résultats
     if len(final) < top_n:
         used_names = {f["field_name"] for f in final}
         available = [r for r in results if r["field_name"] not in used_names]
         for item in available[:top_n - len(final)]:
             final.append(item)
     
-    # Étape 9: Construire la réponse
     return {
         "recommended_fields": final,
         "field_scores": {f["field_name"]: f["score"] for f in final},
@@ -914,10 +986,7 @@ def compute_recommended_fields(profile: Dict[str, Any], top_n: int = 5) -> Dict[
 # ============================================================================
 
 def compute_recommended_institutions(profile: Dict[str, Any], top_n: int = 5) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    DEPRECATED: Les institutions sont recommandées par PORA.
-    Cette fonction est conservée pour compatibilité.
-    """
+    """DEPRECATED: Les institutions sont recommandées par PORA."""
     return {"recommended_institutions": []}
 
 
@@ -926,11 +995,26 @@ def compute_recommended_institutions(profile: Dict[str, Any], top_n: int = 5) ->
 # ============================================================================
 
 if __name__ == "__main__":
-    sample_profile = {
-        "domains": {"computer_science": 0.8, "technical": 0.7, "logic": 0.75},
-        "skills": {"python": 0.9, "data_analysis": 0.8},
+    # Test avec bac F3
+    sample_profile_f3 = {
+        "domains": {"technical": 0.8, "logic": 0.7},
+        "skills": {"electricite": 0.9, "maintenance": 0.8},
+        "context": {"bac_type": "F3"}
+    }
+    
+    print("=== TEST BAC F3 ===")
+    result_f3 = compute_recommended_fields(sample_profile_f3, top_n=5)
+    for field in result_f3["recommended_fields"]:
+        print(f"  - {field['field_name']}: {field['score']} | {field['reason']}")
+    
+    # Test avec bac C
+    sample_profile_c = {
+        "domains": {"computer_science": 0.8, "technical": 0.7},
+        "skills": {"python": 0.9, "math": 0.85},
         "context": {"bac_type": "C"}
     }
     
-    result = compute_recommended_fields(sample_profile, top_n=5)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print("\n=== TEST BAC C ===")
+    result_c = compute_recommended_fields(sample_profile_c, top_n=5)
+    for field in result_c["recommended_fields"]:
+        print(f"  - {field['field_name']}: {field['score']} | {field['reason']}")

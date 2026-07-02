@@ -5,6 +5,7 @@ Version 2.0 - Support avancé pour validation, normalisation et gestion des rép
 
 import logging
 import re
+import unicodedata
 from typing import Dict, List, Optional, Tuple, Any
 from functools import lru_cache
 
@@ -49,6 +50,28 @@ BAC_TRACK_MAPPING = {
 # NORMALISATION DES RÉPONSES
 # ============================================================================
 
+def _strip_invisible_chars(value: str) -> str:
+    """Remove zero-width and invisible unicode characters from a string."""
+    if not value:
+        return value
+    return re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]', '', value)
+
+
+def normalize_response_code(code: Any) -> str:
+    """Normalize question keys and semantic codes from user responses."""
+    if code is None:
+        return ""
+
+    normalized = str(code)
+    normalized = unicodedata.normalize("NFKC", normalized)
+    normalized = _strip_invisible_chars(normalized)
+    normalized = normalized.strip().lower()
+    normalized = re.sub(r'^question_', '', normalized)
+    normalized = re.sub(r'^qst_', '', normalized)
+
+    return normalized
+
+
 def normalize_responses(responses: Dict[str, int]) -> Dict[str, int]:
     """
     Normalise les codes de questions en minuscules.
@@ -66,15 +89,10 @@ def normalize_responses(responses: Dict[str, int]) -> Dict[str, int]:
     
     normalized = {}
     for key, value in responses.items():
-        # Nettoyer la clé
-        normalized_key = str(key).lower().strip()
-        # Supprimer les préfixes indésirables
-        normalized_key = re.sub(r'^question_', '', normalized_key)
-        normalized_key = re.sub(r'^qst_', '', normalized_key)
-        
+        normalized_key = normalize_response_code(key)
         normalized[normalized_key] = value
         
-        if normalized_key != key:
+        if normalized_key != str(key):
             logger.debug(f"Normalized: {key} → {normalized_key}")
     
     logger.info(f"Responses normalized: {len(normalized)} entries")
@@ -90,15 +108,14 @@ def normalize_question_code(code: str) -> str:
     - "question_2" → "q2"
     - "QST_03" → "q3"
     """
-    code = str(code).lower().strip()
+    normalized = normalize_response_code(code)
     
-    # Extraire le numéro
-    match = re.search(r'(\d+)', code)
+    match = re.search(r'(\d+)', normalized)
     if match:
         num = int(match.group(1))
         return f"q{num}"
     
-    return code
+    return normalized
 
 
 def validate_response_values(responses: Dict[str, int]) -> bool:
